@@ -1,121 +1,259 @@
 import 'package:flutter/material.dart';
+import 'package:lightning_core_ui/lightning_core_ui.dart';
+
+import 'components/catalog_card/catalog_card.dart';
+import 'components/catalog_list/catalog_list.dart';
+import 'components/header_menus/header_menus.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const ComponentPreviewApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Local preview harness for the DI Scan components.
+///
+/// The components are built on the DS Design System, so they need three
+/// ancestors to work:
+/// - the DS localization delegates (DS widgets resolve their own strings),
+/// - [DSTheme], which provides both the legacy `DSThemeData` and the design
+///   tokens (`DSTokensData`) that the components read via `DSTokens.of`,
+/// - [DSRegion], which provides region-specific number/date formatting.
+///
+/// [DSTheme] needs a [MediaQuery] ancestor (for the form-factor-dependent
+/// tokens), which is why it is installed through [MaterialApp.builder] rather
+/// than above [MaterialApp].
+class ComponentPreviewApp extends StatelessWidget {
+  const ComponentPreviewApp({super.key, this.dark = false});
 
-  // This widget is the root of your application.
+  /// Renders the gallery with the dark DS theme instead of the light one.
+  final bool dark;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+      title: 'DI Scan Component Preview',
+      debugShowCheckedModeBanner: false,
+      // Includes the DS delegate plus the global Material/Cupertino/Widgets
+      // delegates that DS widgets rely on (e.g. for DateFormat strings).
+      localizationsDelegates: DSCoreUILocalizationDelegates.localizationsDelegates,
+      supportedLocales: DSCoreUILocalizationDelegates.supportedLocales,
+      builder: (context, child) => DSTheme(
+        data: dark ? const DSThemeDataDark() : const DSThemeDataLight(),
+        child: DSRegion(
+          region: DSRegionDataDE.new,
+          child: child!,
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const ComponentGalleryPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+/// Renders every migrated component in a few representative states so they can
+/// be verified visually in the browser.
+class ComponentGalleryPage extends StatelessWidget {
+  const ComponentGalleryPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    final tokens = DSTokens.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      backgroundColor: tokens.background.standard,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(tokens.spacing.layout.l),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'DI Scan Component Gallery',
+                style: tokens.text.headingXl.copyWith(color: tokens.text.standard),
+              ),
+              SizedBox(height: tokens.spacing.layout.l),
+              const _HeaderMenusSection(),
+              SizedBox(height: tokens.spacing.layout.xl),
+              const _CatalogCardSection(),
+              SizedBox(height: tokens.spacing.layout.xl),
+              const _CatalogListSection(),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+    );
+  }
+}
+
+/// A titled block with an optional caption, used to group gallery examples.
+class _Section extends StatelessWidget {
+  const _Section({required this.title, this.caption, required this.child});
+
+  final String title;
+  final String? caption;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+    final caption = this.caption;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: tokens.text.headingBase.copyWith(color: tokens.text.standard),
+        ),
+        if (caption != null) ...[
+          SizedBox(height: tokens.spacing.component.xxs),
+          Text(
+            caption,
+            style: tokens.text.textSm.copyWith(color: tokens.text.subdued),
+          ),
+        ],
+        SizedBox(height: tokens.spacing.component.m),
+        const DSDivider.horizontal(),
+        SizedBox(height: tokens.spacing.layout.s),
+        child,
+      ],
+    );
+  }
+}
+
+/// A single example with a label underneath it.
+class _Example extends StatelessWidget {
+  const _Example({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        child,
+        SizedBox(height: tokens.spacing.component.xs),
+        Text(
+          label,
+          style: tokens.text.textSm.copyWith(color: tokens.text.subdued),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderMenusSection extends StatelessWidget {
+  const _HeaderMenusSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return _Section(
+      title: 'HeaderMenus',
+      caption: 'The three named-constructor variants. Press a button to open '
+          'its menu.',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const _Example(
+            label: '.more',
+            child: HeaderMenus.more(),
+          ),
+          SizedBox(width: tokens.spacing.layout.m),
+          const _Example(
+            label: '.help',
+            child: HeaderMenus.help(),
+          ),
+          SizedBox(width: tokens.spacing.layout.m),
+          const _Example(
+            label: '.settings',
+            child: HeaderMenus.settings(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogCardSection extends StatelessWidget {
+  const _CatalogCardSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return _Section(
+      title: 'CatalogCard',
+      caption: 'Tapping a card toggles between the compact and expanded '
+          'layout.',
+      child: Wrap(
+        spacing: tokens.spacing.layout.m,
+        runSpacing: tokens.spacing.layout.m,
+        children: [
+          _Example(
+            label: 'not selected',
+            child: CatalogCard(
+              name: 'Upper jaw',
+              subtext: 'Scanned 12 min ago',
+              onRemovePressed: () {},
+            ),
+          ),
+          _Example(
+            label: 'selected (expanded)',
+            child: CatalogCard(
+              name: 'Lower jaw',
+              subtext: 'Scanned 4 min ago',
+              selected: true,
+              showStatus: true,
+              onRemovePressed: () {},
+            ),
+          ),
+          const _Example(
+            label: 'disabled',
+            child: CatalogCard(
+              name: 'Bite',
+              subtext: 'Not scanned',
+              disabled: true,
+            ),
+          ),
+          const _Example(
+            label: 'loading',
+            child: CatalogCard(
+              name: 'Switching…',
+              showSubtext: false,
+              isLoading: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogListSection extends StatelessWidget {
+  const _CatalogListSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _Section(
+      title: 'CatalogList',
+      caption: 'Single-selection list. Long-press a card to drag it onto '
+          'another one.',
+      child: CatalogList(
+        selectedIndex: 1,
+        items: [
+          CatalogListItem(name: 'Upper jaw', subtext: 'Scanned 12 min ago'),
+          CatalogListItem(
+            name: 'Lower jaw',
+            subtext: 'Scanned 4 min ago',
+            showStatus: true,
+          ),
+          CatalogListItem(name: 'Bite', subtext: 'Not scanned'),
+        ],
       ),
     );
   }
