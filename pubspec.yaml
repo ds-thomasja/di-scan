@@ -41,7 +41,7 @@ dependencies:
   lightning_core_ui:
     git:
       url: https://bitbucket.dentsplysirona.com/scm/lig/lightning_core_ui.git
-      ref: v50.0.0
+      ref: v51.0.0
 
 dev_dependencies:
   flutter_test:
