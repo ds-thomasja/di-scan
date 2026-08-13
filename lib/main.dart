@@ -48,21 +48,21 @@ class ComponentPreviewApp extends StatelessWidget {
   }
 }
 
-/// One entry in the component sidebar: a display name plus the section
-/// widget that renders that component's example states.
+/// One entry in the component sidebar: a display name plus the playground
+/// widget that renders that component's live, controls-driven preview.
 class _ComponentEntry {
-  const _ComponentEntry(this.name, this.section);
+  const _ComponentEntry(this.name, this.playground);
 
   final String name;
-  final Widget section;
+  final Widget playground;
 }
 
 /// The components available in this gallery, ordered alphabetically by name
 /// so the sidebar list order stays deterministic as components are added.
 final List<_ComponentEntry> _componentEntries = [
-  const _ComponentEntry('CatalogCard', _CatalogCardSection()),
-  const _ComponentEntry('CatalogList', _CatalogListSection()),
-  const _ComponentEntry('HeaderMenus', _HeaderMenusSection()),
+  const _ComponentEntry('CatalogCard', _CatalogCardPlayground()),
+  const _ComponentEntry('CatalogList', _CatalogListPlayground()),
+  const _ComponentEntry('HeaderMenus', _HeaderMenusPlayground()),
 ]..sort((a, b) => a.name.compareTo(b.name));
 
 /// Shows one component at a time, selected from a sidebar listing every
@@ -96,20 +96,24 @@ class _ComponentGalleryPageState extends State<ComponentGalleryPage> {
             ),
             const VerticalDivider(width: 1),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(tokens.spacing.layout.l),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(tokens.spacing.layout.l),
+                    child: Text(
                       'DI Scan Component Gallery',
                       style: tokens.text.headingXl
                           .copyWith(color: tokens.text.standard),
                     ),
-                    SizedBox(height: tokens.spacing.layout.l),
-                    selected.section,
-                  ],
-                ),
+                  ),
+                  Expanded(
+                    // Each entry's playground owns both the live preview
+                    // (center) and the parameter controls (right sidebar) so
+                    // the two stay in sync via one shared piece of state.
+                    child: selected.playground,
+                  ),
+                ],
               ),
             ),
           ],
@@ -202,7 +206,8 @@ class _ComponentSidebarItem extends StatelessWidget {
   }
 }
 
-/// A titled block with an optional caption, used to group gallery examples.
+/// A titled block with an optional caption, used to introduce a component's
+/// live preview area.
 class _Section extends StatelessWidget {
   const _Section({required this.title, this.caption, required this.child});
 
@@ -238,142 +243,312 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// A single example with a label underneath it.
-class _Example extends StatelessWidget {
-  const _Example({required this.label, required this.child});
+/// The fixed-width right-hand sidebar holding a component's live parameter
+/// controls (text inputs, dropdowns, toggles, ...).
+class _ControlsPanel extends StatelessWidget {
+  const _ControlsPanel({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return SizedBox(
+      width: 280,
+      child: ColoredBox(
+        color: tokens.background.dimmer,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(tokens.spacing.layout.m),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Controls',
+                style: tokens.text.headingBase
+                    .copyWith(color: tokens.text.standard),
+              ),
+              SizedBox(height: tokens.spacing.layout.s),
+              for (final child in children) ...[
+                child,
+                SizedBox(height: tokens.spacing.component.l),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A single labeled control (text input, dropdown, ...) in a [_ControlsPanel].
+class _ControlField extends StatelessWidget {
+  const _ControlField({required this.label, required this.child});
 
   final String label;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final tokens = DSTokens.of(context);
-
     return Column(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DSLabel(label: label),
+        const SizedBox(height: 4),
         child,
-        SizedBox(height: tokens.spacing.component.xs),
-        Text(
-          label,
-          style: tokens.text.textSm.copyWith(color: tokens.text.subdued),
+      ],
+    );
+  }
+}
+
+/// The demo states offered by [CatalogCard]'s "State" dropdown, covering its
+/// selected/disabled/loading variants.
+enum _CatalogCardDemoState { default_, selected, disabled, loading }
+
+extension on _CatalogCardDemoState {
+  String get label => switch (this) {
+        _CatalogCardDemoState.default_ => 'Default',
+        _CatalogCardDemoState.selected => 'Selected',
+        _CatalogCardDemoState.disabled => 'Disabled',
+        _CatalogCardDemoState.loading => 'Loading',
+      };
+}
+
+/// Live, controls-driven preview of [CatalogCard]: name/subtext text inputs,
+/// a subtext visibility toggle, a state dropdown (default/selected/disabled/
+/// loading), and a status-icon toggle.
+class _CatalogCardPlayground extends StatefulWidget {
+  const _CatalogCardPlayground();
+
+  @override
+  State<_CatalogCardPlayground> createState() =>
+      _CatalogCardPlaygroundState();
+}
+
+class _CatalogCardPlaygroundState extends State<_CatalogCardPlayground> {
+  late final _nameController = TextEditingController(text: 'Upper jaw');
+  late final _subtextController =
+      TextEditingController(text: 'Scanned 12 min ago');
+  bool _showSubtext = true;
+  _CatalogCardDemoState _state = _CatalogCardDemoState.default_;
+  bool _showStatus = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _subtextController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    final preview = CatalogCard(
+      name: _nameController.text,
+      subtext: _subtextController.text,
+      showSubtext: _showSubtext,
+      selected: _state == _CatalogCardDemoState.selected,
+      disabled: _state == _CatalogCardDemoState.disabled,
+      isLoading: _state == _CatalogCardDemoState.loading,
+      showStatus: _showStatus,
+      onRemovePressed: () {},
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'CatalogCard',
+              caption: 'Edit the parameters on the right to update the '
+                  'preview live.',
+              child: Center(child: preview),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            _ControlField(
+              label: 'Name',
+              child: DSInput(
+                controller: _nameController,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            _ControlField(
+              label: 'Subtext',
+              child: DSInput(
+                controller: _subtextController,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            DSSwitch(
+              label: 'Show subtext',
+              value: _showSubtext,
+              onChanged: (value) => setState(() => _showSubtext = value),
+            ),
+            _ControlField(
+              label: 'State',
+              child: DSDropdown<_CatalogCardDemoState>(
+                items: [
+                  for (final state in _CatalogCardDemoState.values)
+                    DSDropdownItem(value: state, title: state.label),
+                ],
+                value: _state,
+                onChanged: (value) =>
+                    setState(() => _state = value ?? _state),
+              ),
+            ),
+            DSSwitch(
+              label: 'Show status icon',
+              value: _showStatus,
+              onChanged: (value) => setState(() => _showStatus = value),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _HeaderMenusSection extends StatelessWidget {
-  const _HeaderMenusSection();
+/// Live, controls-driven preview of [CatalogList]: a dropdown selecting which
+/// (if any) of the fixed demo items is selected.
+class _CatalogListPlayground extends StatefulWidget {
+  const _CatalogListPlayground();
+
+  @override
+  State<_CatalogListPlayground> createState() =>
+      _CatalogListPlaygroundState();
+}
+
+class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
+  static const _items = [
+    CatalogListItem(name: 'Upper jaw', subtext: 'Scanned 12 min ago'),
+    CatalogListItem(
+      name: 'Lower jaw',
+      subtext: 'Scanned 4 min ago',
+      showStatus: true,
+    ),
+    CatalogListItem(name: 'Bite', subtext: 'Not scanned'),
+  ];
+
+  int? _selectedIndex = 1;
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
 
-    return _Section(
-      title: 'HeaderMenus',
-      caption: 'The three named-constructor variants. Press a button to open '
-          'its menu.',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _Example(
-            label: '.more',
-            child: HeaderMenus.more(),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'CatalogList',
+              caption: 'Long-press a card to drag it onto another one. '
+                  'Choose the selected card on the right.',
+              child: CatalogList(
+                selectedIndex: _selectedIndex,
+                items: _items,
+                onSelectionChanged: (index) =>
+                    setState(() => _selectedIndex = index),
+              ),
+            ),
           ),
-          SizedBox(width: tokens.spacing.layout.m),
-          const _Example(
-            label: '.help',
-            child: HeaderMenus.help(),
-          ),
-          SizedBox(width: tokens.spacing.layout.m),
-          const _Example(
-            label: '.settings',
-            child: HeaderMenus.settings(),
-          ),
-        ],
-      ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            _ControlField(
+              label: 'Selected',
+              child: DSDropdown<int?>(
+                items: [
+                  DSDropdownItem(value: null, title: 'None'),
+                  for (var i = 0; i < _items.length; i++)
+                    DSDropdownItem(value: i, title: _items[i].name),
+                ],
+                value: _selectedIndex,
+                onChanged: (value) => setState(() => _selectedIndex = value),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _CatalogCardSection extends StatelessWidget {
-  const _CatalogCardSection();
+/// The three named-constructor variants offered by [HeaderMenus]'s "Type"
+/// dropdown.
+enum _HeaderMenusDemoType { more, help, settings }
+
+extension on _HeaderMenusDemoType {
+  String get label => switch (this) {
+        _HeaderMenusDemoType.more => 'More',
+        _HeaderMenusDemoType.help => 'Help',
+        _HeaderMenusDemoType.settings => 'Settings',
+      };
+}
+
+/// Live, controls-driven preview of [HeaderMenus]: a dropdown selecting which
+/// of the three named-constructor variants (more/help/settings) to render.
+class _HeaderMenusPlayground extends StatefulWidget {
+  const _HeaderMenusPlayground();
+
+  @override
+  State<_HeaderMenusPlayground> createState() =>
+      _HeaderMenusPlaygroundState();
+}
+
+class _HeaderMenusPlaygroundState extends State<_HeaderMenusPlayground> {
+  _HeaderMenusDemoType _type = _HeaderMenusDemoType.more;
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
 
-    return _Section(
-      title: 'CatalogCard',
-      caption: 'Tapping a card toggles between the compact and expanded '
-          'layout.',
-      child: Wrap(
-        spacing: tokens.spacing.layout.m,
-        runSpacing: tokens.spacing.layout.m,
-        children: [
-          _Example(
-            label: 'not selected',
-            child: CatalogCard(
-              name: 'Upper jaw',
-              subtext: 'Scanned 12 min ago',
-              onRemovePressed: () {},
-            ),
-          ),
-          _Example(
-            label: 'selected (expanded)',
-            child: CatalogCard(
-              name: 'Lower jaw',
-              subtext: 'Scanned 4 min ago',
-              selected: true,
-              showStatus: true,
-              onRemovePressed: () {},
-            ),
-          ),
-          const _Example(
-            label: 'disabled',
-            child: CatalogCard(
-              name: 'Bite',
-              subtext: 'Not scanned',
-              disabled: true,
-            ),
-          ),
-          const _Example(
-            label: 'loading',
-            child: CatalogCard(
-              name: 'Switching…',
-              showSubtext: false,
-              isLoading: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+    final preview = switch (_type) {
+      _HeaderMenusDemoType.more => const HeaderMenus.more(),
+      _HeaderMenusDemoType.help => const HeaderMenus.help(),
+      _HeaderMenusDemoType.settings => const HeaderMenus.settings(),
+    };
 
-class _CatalogListSection extends StatelessWidget {
-  const _CatalogListSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _Section(
-      title: 'CatalogList',
-      caption: 'Single-selection list. Long-press a card to drag it onto '
-          'another one.',
-      child: CatalogList(
-        selectedIndex: 1,
-        items: [
-          CatalogListItem(name: 'Upper jaw', subtext: 'Scanned 12 min ago'),
-          CatalogListItem(
-            name: 'Lower jaw',
-            subtext: 'Scanned 4 min ago',
-            showStatus: true,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'HeaderMenus',
+              caption: 'Press the button to open its menu. Choose the '
+                  'variant on the right.',
+              child: Center(child: preview),
+            ),
           ),
-          CatalogListItem(name: 'Bite', subtext: 'Not scanned'),
-        ],
-      ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            _ControlField(
+              label: 'Type',
+              child: DSDropdown<_HeaderMenusDemoType>(
+                items: [
+                  for (final type in _HeaderMenusDemoType.values)
+                    DSDropdownItem(value: type, title: type.label),
+                ],
+                value: _type,
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

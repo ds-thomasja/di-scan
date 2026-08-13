@@ -9,17 +9,15 @@ import 'package:di_scan/main.dart';
 
 void main() {
   testWidgets(
-      'Component gallery shows one component at a time via the sidebar',
-      (WidgetTester tester) async {
-    // A viewport large enough to lay out the sidebar plus content without
-    // the horizontal Row/Wrap sections overflowing.
+      'Component gallery shows one live, controls-driven component at a '
+      'time via the sidebar', (WidgetTester tester) async {
+    // A viewport large enough to lay out the sidebar, preview and controls
+    // panel without overflowing.
     tester.view.physicalSize = const Size(1600, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(const ComponentPreviewApp());
-    // Not pumpAndSettle: the loading CatalogCard shows an indeterminate
-    // DSProgressCircle, which never stops animating.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -30,7 +28,7 @@ void main() {
     // CatalogCard is first alphabetically, so it's selected by default: its
     // label appears both in the sidebar and as the content heading.
     expect(find.text('CatalogCard'), findsNWidgets(2));
-    expect(find.byType(CatalogCard), findsNWidgets(4));
+    expect(find.byType(CatalogCard), findsOneWidget);
     expect(find.byType(CatalogList), findsNothing);
     expect(find.byType(HeaderMenus), findsNothing);
 
@@ -45,12 +43,13 @@ void main() {
     expect(find.byType(HeaderMenus), findsNothing);
 
     // Selecting HeaderMenus in the sidebar swaps the main content again.
+    // It defaults to the "More" variant, driven by the Type dropdown.
     await tester.tap(find.text('HeaderMenus'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('HeaderMenus'), findsNWidgets(2));
-    expect(find.byType(HeaderMenus), findsNWidgets(3));
+    expect(find.byType(HeaderMenus), findsOneWidget);
     expect(find.byType(CatalogCard), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
   });
@@ -62,8 +61,6 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(const ComponentPreviewApp(dark: true));
-    // Not pumpAndSettle: the loading CatalogCard shows an indeterminate
-    // DSProgressCircle, which never stops animating.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
