@@ -5,7 +5,7 @@ h2. User Story
 h2. Design Definition & Assets
 
 - Figma Link: [Application loading|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5033-19060]
-- Flutter Component: TBD — not yet committed/pushed to origin (`lib/components/application_loading/application_loading.dart` exists locally in the `di_scan` working tree as of this writing, but has no commit yet, so no GitHub blob link can be generated).
+- Flutter Component: [application_loading.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/application_loading/application_loading.dart]
 - Interaction Model: A single, mostly-static full-screen state (1600×1024 in Figma) shown while a scan is being prepared. It always shows an indeterminate progress circle with the scanner device illustration, a "Loading scan..." heading, and a subtext line. Two blocks are conditionally shown based on props: an info-style inline notification ({{notification}}) explaining a slower-than-usual load, and a 3-step timeline card ({{timeline}}) showing "Preparing workspace…" (active) → "Fetch scan data" (upcoming) → "Start application" (upcoming). A tertiary "Cancel loading" button is always shown and calls {{onCancel}} when pressed; there is no confirmation step and no other navigation target defined at this component's level (what happens after cancel — e.g. which screen is shown next — is out of scope for this component and owned by the caller). No Figma-defined motion exists for this node (confirmed via `get_motion_context`); the progress circle's indeterminate rotation is inherent behavior of the DS {{DSProgressCircleFilled}} widget itself, not a custom animation authored for this component.
 
 h2. Component Props
