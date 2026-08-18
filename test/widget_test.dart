@@ -2,6 +2,7 @@ import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:di_scan/components/application_loading/application_loading.dart';
 import 'package:di_scan/components/catalog_card/catalog_card.dart';
 import 'package:di_scan/components/catalog_list/catalog_list.dart';
 import 'package:di_scan/components/header_menus/header_menus.dart';
@@ -22,13 +23,26 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     // The sidebar lists every component, alphabetically.
+    expect(find.text('CatalogCard'), findsOneWidget);
     expect(find.text('CatalogList'), findsOneWidget);
     expect(find.text('HeaderMenus'), findsOneWidget);
 
-    // CatalogCard is first alphabetically, so it's selected by default: its
-    // label appears both in the sidebar and as the content heading.
+    // ApplicationLoading is first alphabetically, so it's selected by default:
+    // its label appears both in the sidebar and as the content heading.
+    expect(find.text('ApplicationLoading'), findsNWidgets(2));
+    expect(find.byType(ApplicationLoading), findsOneWidget);
+    expect(find.byType(CatalogCard), findsNothing);
+    expect(find.byType(CatalogList), findsNothing);
+    expect(find.byType(HeaderMenus), findsNothing);
+
+    // Selecting CatalogCard in the sidebar swaps the main content.
+    await tester.tap(find.text('CatalogCard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
     expect(find.text('CatalogCard'), findsNWidgets(2));
     expect(find.byType(CatalogCard), findsOneWidget);
+    expect(find.byType(ApplicationLoading), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
     expect(find.byType(HeaderMenus), findsNothing);
 
@@ -52,6 +66,49 @@ void main() {
     expect(find.byType(HeaderMenus), findsOneWidget);
     expect(find.byType(CatalogCard), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
+  });
+
+  testWidgets(
+      'ApplicationLoading playground toggles the notification and timeline '
+      'blocks', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // ApplicationLoading is selected by default, with both optional blocks on.
+    expect(find.text('Loading scan...'), findsOneWidget);
+    expect(find.text('This may take a few seconds'), findsOneWidget);
+    expect(find.text('Taking a little longer than usual'), findsOneWidget);
+    expect(find.text('Preparing workspace…'), findsOneWidget);
+    expect(find.text('Fetch scan data'), findsOneWidget);
+    expect(find.text('Start application'), findsOneWidget);
+    expect(find.text('Cancel loading'), findsOneWidget);
+
+    // Turning the "Notification" switch off hides the inline notification but
+    // keeps the timeline stepper.
+    await tester.tap(find.text('Notification'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Taking a little longer than usual'), findsNothing);
+    expect(find.text('Preparing workspace…'), findsOneWidget);
+
+    // Turning the "Timeline" switch off hides the stepper card as well.
+    await tester.tap(find.text('Timeline'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Preparing workspace…'), findsNothing);
+    expect(find.text('Fetch scan data'), findsNothing);
+    expect(find.text('Start application'), findsNothing);
+
+    // The heading, subtext and cancel button are always present.
+    expect(find.text('Loading scan...'), findsOneWidget);
+    expect(find.text('Cancel loading'), findsOneWidget);
   });
 
   testWidgets('Component gallery renders with the dark DS theme',

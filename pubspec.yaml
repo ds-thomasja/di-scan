@@ -74,10 +74,14 @@ flutter:
       fonts:
         - asset: packages/lightning_core_ui/src/fonts/Roboto-Regular.ttf
 
-  # To add assets to your application, add an assets section like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    # Scanner device illustration used by the ApplicationLoading component.
+    # `primescan_device.png` is the raw source artwork;
+    # `primescan_device_progress_circle.png` is the same artwork composed onto
+    # a square, transparent 396x396 (@2x) canvas at the Figma inset, which is
+    # the format DSProgressCircleFilled expects for its centre image.
+    - assets/images/primescan_device.png
+    - assets/images/primescan_device_progress_circle.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

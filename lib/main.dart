@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lightning_core_ui/lightning_core_ui.dart';
 
+import 'components/application_loading/application_loading.dart';
 import 'components/catalog_card/catalog_card.dart';
 import 'components/catalog_list/catalog_list.dart';
 import 'components/header_menus/header_menus.dart';
@@ -60,6 +61,7 @@ class _ComponentEntry {
 /// The components available in this gallery, ordered alphabetically by name
 /// so the sidebar list order stays deterministic as components are added.
 final List<_ComponentEntry> _componentEntries = [
+  const _ComponentEntry('ApplicationLoading', _ApplicationLoadingPlayground()),
   const _ComponentEntry('CatalogCard', _CatalogCardPlayground()),
   const _ComponentEntry('CatalogList', _CatalogListPlayground()),
   const _ComponentEntry('HeaderMenus', _HeaderMenusPlayground()),
@@ -296,6 +298,70 @@ class _ControlField extends StatelessWidget {
         DSLabel(label: label),
         const SizedBox(height: 4),
         child,
+      ],
+    );
+  }
+}
+
+/// Live, controls-driven preview of [ApplicationLoading]: switches for the
+/// optional inline notification and the timeline stepper card.
+class _ApplicationLoadingPlayground extends StatefulWidget {
+  const _ApplicationLoadingPlayground();
+
+  @override
+  State<_ApplicationLoadingPlayground> createState() =>
+      _ApplicationLoadingPlaygroundState();
+}
+
+class _ApplicationLoadingPlaygroundState
+    extends State<_ApplicationLoadingPlayground> {
+  bool _notification = true;
+  bool _timeline = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'ApplicationLoading',
+              caption: 'A full loading screen (1600×1024 in Figma), so the '
+                  'preview is given a fixed height here. Toggle its optional '
+                  'blocks on the right.',
+              // The component fills whatever box it is given; without an
+              // explicit height it would try to grow unbounded inside this
+              // scroll view.
+              child: SizedBox(
+                height: 900,
+                child: ApplicationLoading(
+                  notification: _notification,
+                  timeline: _timeline,
+                  onCancel: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            DSSwitch(
+              label: 'Notification',
+              value: _notification,
+              onChanged: (value) => setState(() => _notification = value),
+            ),
+            DSSwitch(
+              label: 'Timeline',
+              value: _timeline,
+              onChanged: (value) => setState(() => _timeline = value),
+            ),
+          ],
+        ),
       ],
     );
   }
