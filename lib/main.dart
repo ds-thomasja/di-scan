@@ -303,8 +303,9 @@ class _ControlField extends StatelessWidget {
   }
 }
 
-/// Live, controls-driven preview of [ApplicationLoading]: switches for the
-/// optional inline notification and the timeline stepper card.
+/// Live, controls-driven preview of [ApplicationLoading]: an input for the
+/// subline text and switches for the optional inline notification and the
+/// timeline stepper card.
 class _ApplicationLoadingPlayground extends StatefulWidget {
   const _ApplicationLoadingPlayground();
 
@@ -315,8 +316,16 @@ class _ApplicationLoadingPlayground extends StatefulWidget {
 
 class _ApplicationLoadingPlaygroundState
     extends State<_ApplicationLoadingPlayground> {
+  late final _sublineController =
+      TextEditingController(text: 'This may take a few seconds');
   bool _notification = true;
   bool _timeline = true;
+
+  @override
+  void dispose() {
+    _sublineController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -339,6 +348,7 @@ class _ApplicationLoadingPlaygroundState
               child: SizedBox(
                 height: 900,
                 child: ApplicationLoading(
+                  subline: _sublineController.text,
                   notification: _notification,
                   timeline: _timeline,
                   onCancel: () {},
@@ -350,6 +360,13 @@ class _ApplicationLoadingPlaygroundState
         const VerticalDivider(width: 1),
         _ControlsPanel(
           children: [
+            _ControlField(
+              label: 'Subline',
+              child: DSInput(
+                controller: _sublineController,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
             DSSwitch(
               label: 'Notification',
               value: _notification,

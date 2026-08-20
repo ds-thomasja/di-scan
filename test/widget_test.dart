@@ -1,6 +1,7 @@
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightning_core_ui/lightning_core_ui.dart';
 
 import 'package:di_scan/components/application_loading/application_loading.dart';
 import 'package:di_scan/components/catalog_card/catalog_card.dart';
@@ -80,8 +81,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     // ApplicationLoading is selected by default, with both optional blocks on.
+    // 'This may take a few seconds' matches both the Subline control's
+    // initial value and the preview's own subline text.
     expect(find.text('Loading scan...'), findsOneWidget);
-    expect(find.text('This may take a few seconds'), findsOneWidget);
+    expect(find.text('This may take a few seconds'), findsNWidgets(2));
     expect(find.text('Taking a little longer than usual'), findsOneWidget);
     expect(find.text('Preparing workspace…'), findsOneWidget);
     expect(find.text('Fetch scan data'), findsOneWidget);
@@ -109,6 +112,48 @@ void main() {
     // The heading, subtext and cancel button are always present.
     expect(find.text('Loading scan...'), findsOneWidget);
     expect(find.text('Cancel loading'), findsOneWidget);
+  });
+
+  testWidgets(
+      "ApplicationLoading's subline swaps text without animating height "
+      'when the new text wraps to the same number of lines, but does '
+      'animate height when the line count changes', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final sublineFinder = find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_AnimatedSubline');
+    final initialHeight = tester.getSize(sublineFinder).height;
+
+    // Same line count ("This may take a few seconds" -> "Ready in about 30
+    // seconds", both one line): height must not move mid-transition.
+    await tester.enterText(find.byType(DSInput), 'Ready in about 30 seconds');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(tester.getSize(sublineFinder).height, closeTo(initialHeight, 0.5));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Ready in about 30 seconds'), findsNWidgets(2));
+    expect(tester.getSize(sublineFinder).height, closeTo(initialHeight, 0.5));
+
+    // A line-count change (one line -> several lines): height does move
+    // mid-transition, settling on a taller box than the one-line height.
+    await tester.enterText(
+      find.byType(DSInput),
+      'Ready in about this really rather unusually long stretch of extra '
+      'time before the scan is likely to actually finish loading up',
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    final midHeight = tester.getSize(sublineFinder).height;
+    expect(midHeight, isNot(closeTo(initialHeight, 0.5)));
+    await tester.pump(const Duration(milliseconds: 200));
+    final finalHeight = tester.getSize(sublineFinder).height;
+    expect(finalHeight, greaterThan(initialHeight));
   });
 
   testWidgets('Component gallery renders with the dark DS theme',

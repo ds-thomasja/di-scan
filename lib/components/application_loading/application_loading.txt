@@ -54,7 +54,7 @@ Timeline stepper is removed from the DOM.
 A warning Inline notification appears,
 Title: "We couldn't finish loading"
 Body: "Something went wrong on our side."
-Transition between any two time-description states uses a 200ms opacity/height transition, easing cubic-bezier(0.4, 0.0, 0.2, 1).
+Transition between any two time-description states uses a 200ms opacity/height transition, easing cubic-bezier(0.4, 0.0, 0.2, 1). The height component of that transition only applies when the subline's wrapped line count actually changes between the two states (e.g. appearing/disappearing, or wrapping to a different number of lines); a swap between two states whose subline renders as the same number of lines (e.g. "This only takes a moment" → "Ready in about 30 seconds") cross-fades in place at a constant height, with no height animation.
 States — Timeline stepper (per-step, driven by backend events, independent of elapsed time):
 Each of the 3 steps (Infrastructure, Scan data, Application) has 3 mutually exclusive states: Pending, Active, Complete.
 Infrastructure

@@ -21,10 +21,17 @@ class ApplicationLoading extends StatelessWidget {
   /// Creates the "Application loading" screen.
   const ApplicationLoading({
     super.key,
+    this.subline = 'This may take a few seconds',
     this.notification = true,
     this.timeline = true,
     this.onCancel,
   });
+
+  /// The subtext shown under the "Loading scan..." heading. In the real flow
+  /// this is switched between the elapsed-time copy described in this
+  /// component's spec (e.g. "This only takes a moment" → "Ready in about 30
+  /// seconds").
+  final String subline;
 
   /// Whether the "Taking a little longer than usual" inline notification is
   /// shown. In the real flow this is switched on once the load exceeds the
@@ -153,11 +160,11 @@ class ApplicationLoading extends StatelessWidget {
                       .copyWith(color: tokens.text.standard),
                 ),
                 SizedBox(height: tokens.spacing.component.xs),
-                Text(
-                  'This may take a few seconds',
-                  textAlign: TextAlign.center,
+                _AnimatedSubline(
+                  text: subline,
                   style: tokens.text.textBase
                       .copyWith(color: tokens.text.subdued),
+                  maxWidth: _contentMaxWidth - 2 * tokens.spacing.component.l,
                 ),
               ],
             ),
@@ -244,6 +251,71 @@ class ApplicationLoading extends StatelessWidget {
           onPressed: () => onCancel?.call(),
         ),
       ],
+    );
+  }
+}
+
+/// Cross-fades [text] in place when it changes, only animating the
+/// surrounding box's height if the incoming text wraps to a different number
+/// of lines than the text it replaces. A same-line-count swap (e.g. one
+/// elapsed-time string to another) stays at a fixed height and only fades;
+/// a line-count change also resizes, matching [ApplicationLoading]'s other
+/// show/hide transitions.
+class _AnimatedSubline extends StatefulWidget {
+  const _AnimatedSubline({
+    required this.text,
+    required this.style,
+    required this.maxWidth,
+  });
+
+  final String text;
+  final TextStyle style;
+  final double maxWidth;
+
+  @override
+  State<_AnimatedSubline> createState() => _AnimatedSublineState();
+}
+
+class _AnimatedSublineState extends State<_AnimatedSubline> {
+  bool _animateHeight = false;
+
+  @override
+  void didUpdateWidget(_AnimatedSubline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _animateHeight = _lineCount(oldWidget.text) != _lineCount(widget.text);
+    }
+  }
+
+  int _lineCount(String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: widget.style),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: widget.maxWidth);
+    final lineCount = painter.computeLineMetrics().length;
+    painter.dispose();
+    return lineCount;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: ApplicationLoading._transitionDuration,
+      switchInCurve: ApplicationLoading._transitionCurve,
+      switchOutCurve: ApplicationLoading._transitionCurve,
+      transitionBuilder: (child, animation) {
+        final fade = FadeTransition(opacity: animation, child: child);
+        return _animateHeight
+            ? SizeTransition(sizeFactor: animation, child: Center(child: fade))
+            : fade;
+      },
+      child: Text(
+        widget.text,
+        key: ValueKey(widget.text),
+        textAlign: TextAlign.center,
+        style: widget.style,
+      ),
     );
   }
 }
