@@ -1,93 +1,116 @@
-h2. User Story
+User story
 
-{Draft: not yet confirmed with product} As a clinician, I want to see clear progress feedback while the scan application is preparing, so that I know the system is working and can cancel the attempt if it is taking too long.
+As a clinician waiting for the DI scan software to load, I want the loading screen to tell me how much longer to expect and what is happening, so that I know the system is still working and don't restart the process unnecessarily
 
-h2. Design Definition & Assets
-
-- Figma Link: [Application loading|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5033-19060]
-- Flutter Component: [application_loading.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/application_loading/application_loading.dart]
-- Interaction Model: A single, mostly-static full-screen state (1600×1024 in Figma) shown while a scan is being prepared. It always shows an indeterminate progress circle with the scanner device illustration, a "Loading scan..." heading, and a subtext line. Two blocks are conditionally shown based on props: an info-style inline notification ({{notification}}) explaining a slower-than-usual load, and a 3-step timeline card ({{timeline}}) showing "Preparing workspace…" (active) → "Fetch scan data" (upcoming) → "Start application" (upcoming). A tertiary "Cancel loading" button is always shown and calls {{onCancel}} when pressed; there is no confirmation step and no other navigation target defined at this component's level (what happens after cancel — e.g. which screen is shown next — is out of scope for this component and owned by the caller). No Figma-defined motion exists for this node (confirmed via `get_motion_context`); the progress circle's indeterminate rotation is inherent behavior of the DS {{DSProgressCircleFilled}} widget itself, not a custom animation authored for this component.
-
-h2. Component Props
-
-|| Prop || Type || Default || Description ||
-| {{notification}} | {{bool}} | {{true}} | Shows/hides the "Taking a little longer than usual" inline notification. |
-| {{timeline}} | {{bool}} | {{true}} | Shows/hides the 3-step timeline stepper card. |
-| {{onCancel}} | {{VoidCallback?}} | {{null}} | Called when "Cancel loading" is pressed. The button stays enabled when {{null}}; pressing it is then a no-op. |
-
-h2. Component Anatomy & Flutter Mapping
-
-|| Element || Flutter Widget || Documentation ||
-| Root background | {{ColoredBox}} (color: background.standard) + {{ClipRRect}} (radius: border.radius.standard) | n/a |
-| Indeterminate progress circle | {{DSProgressCircleFilled.withImage}} | [Storybook — Progress circle filled|https://zeroheight.com/0b922d40b/v/0/p/4022a4-progress-circle-filled] |
-| Scanner device illustration | {{AssetImage}} (`assets/images/primescan_device_progress_circle.png`) | n/a |
-| Heading | {{Text}} (style: text.heading3xl, color: text.standard) | n/a |
-| Subtext | {{Text}} (style: text.textBase, color: text.subdued) | n/a |
-| Inline notification | {{DSInlineNotification}} (notificationType: information) | [Storybook — Inline notification|https://zeroheight.com/0b922d40b/v/0/p/5697b4-inline-notification] |
-| Timeline card container | {{DSContainer}} (padding: spacing.layout.m) | [Storybook — Container|https://zeroheight.com/0b922d40b/v/0/p/24be69-container] |
-| Timeline stepper | {{DSTimelineStepper}} (steps: {{List<DSTimelineStep>}}) | [Storybook — Timeline stepper|https://dentsplysirona.zeroheight.com/styleguide/s/82440/p/969ad9-timeline-stepper] |
-| Cancel button | {{DSButton.tertiary}} (buttonText: "Cancel loading") | [Storybook — Button|https://zeroheight.com/0b922d40b/v/0/p/156acf-button] |
-
-h2. Acceptance Criteria
-
- - *Functional:*
- -- The {{notification}} prop controls visibility of the "Taking a little longer than usual" inline notification; hidden when {{notification = false}}.
- -- The {{timeline}} prop controls visibility of the 3-step timeline card; hidden when {{timeline = false}}.
- -- Pressing "Cancel loading" invokes {{onCancel}} if provided; the button remains enabled and tappable even when {{onCancel}} is {{null}}, in which case pressing it is a no-op.
- -- The progress circle, scanner illustration, heading, and subtext are always shown regardless of prop values.
-
- - *States:*
- -- Single visual state — content is driven entirely by {{notification}}/{{timeline}}; there is no hover/selected/disabled variant of the component itself (the wrapped {{DSButton.tertiary}} and {{DSInlineNotification}} own their own internal interactive states).
-
- - *A11y:*
- -- Touch target size, focus outline, and contrast for the Cancel button and inline notification icon are owned by the underlying {{DSButton}}/{{DSInlineNotification}} DS widgets and are not independently overridden here.
- -- No custom ARIA roles/labels are set at this component's level; text content (heading, subtext, notification copy, step labels) is plain readable text.
-
- - *Visual Fidelity:*
- -- *Progress circle:*
- --- Sizing: 396×396, per Figma node `5033:18962`.
- --- Ring color/track: owned internally by {{DSProgressCircleFilled}} defaults — not independently overridden by this component.
- --- Centre image: scanner illustration inset at ~17.67% top / 22.13% bottom / 32.33% left / 32.27% right of the 396×396 box (~140×225), pre-composed onto a padded canvas asset (`primescan_device_progress_circle.png`) to satisfy {{DSProgressCircleFilled}}'s `BoxFit.cover` contract [TOKEN NEEDED — confirm the pre-composed asset dimensions exactly reproduce the Figma inset; verified visually against the Figma screenshot but not pixel-diffed].
- -- *Text block:*
- --- Max width: 512px, horizontal padding {{var(--spacing/component/l, 24px)}}.
- --- Heading "Loading scan...": Font Be Vietnam Pro SemiBold, {{var(--text/size/heading3xl, 32px)}} / {{var(--text/line-height/heading3xl, 40px)}} lh / {{var(--text/letter-spacing/heading3xl, -0.8px)}} ls, color {{var(--text/standard, #242424)}}, centered.
- --- Subtext "This may take a few seconds": Font Be Vietnam Pro Regular, {{var(--text/size/textbase, 16px)}} / {{var(--text/line-height/textbase, 24px)}} lh / {{var(--text/letter-spacing/textbase, -0.4px)}} ls, color {{var(--text/subdued, #575757)}}, centered.
- -- *Inline notification:*
- --- Sizing: full width of the 512px text-block column.
- --- Background: {{var(--surface/information-subdued, #eaf5fa)}}.
- --- Border: {{var(--border/width/standard, 1px)}} solid {{var(--border/information, #24759e)}}, radius {{var(--border/radius/standard, 12px)}}.
- --- Title "Taking a little longer than usual": Font Be Vietnam Pro SemiBold, {{var(--text/size/headingbase, 16px)}} / {{var(--text/line-height/headingbase, 24px)}} lh, color {{var(--text/standard, #242424)}}.
- --- Body "This can take several minutes. Please stay on this screen and do not refresh.": Font Be Vietnam Pro Regular, {{var(--text/size/textbase, 16px)}} / {{var(--text/line-height/textbase, 24px)}} lh, color {{var(--text/standard, #242424)}}.
- -- *Timeline card:*
- --- Sizing: max-width 400px, padding {{var(--spacing/layout/m, 24px)}}.
- --- Background: {{var(--surface/standard, #ffffff)}}, radius {{var(--border/radius/large, 16px)}}.
- --- Active step label ("Preparing workspace…"): Font Be Vietnam Pro SemiBold, {{var(--text/size/textbasestrong, 16px)}} / {{var(--text/line-height/textbasestrong, 24px)}} lh, color {{var(--text/standard, #242424)}}, filled blue circle icon.
- --- Upcoming step labels ("Fetch scan data", "Start application"): same typography as the active step per Figma; outline/plain circle icon, connected by {{var(--surface-neutral/standard, #d7d7d7)}} vertical lines.
- -- *Cancel button:*
- --- Style: tertiary (no fill, no border).
- --- Label "Cancel loading": Font Be Vietnam Pro SemiBold, {{var(--text/size/textaction, 14px)}} / {{var(--text/line-height/textaction, 24px)}} lh / {{var(--text/letter-spacing/textaction, -0.35px)}} ls, color {{var(--text/standard, #242424)}}.
-
-h2. Content Logic & Edge Cases
-
-- *Both optional blocks off*: with {{notification = false}} and {{timeline = false}}, the layout collapses to just the progress circle, heading, subtext, and Cancel button — no placeholder space is reserved for the hidden blocks.
-- *Short viewport*: unlike the Figma frame (which is a fixed 1600×1024 desktop composition), the shipped implementation wraps its content in a scroll view so the whole block degrades to vertical scrolling once the available height is smaller than the content — this is an engineering addition beyond what Figma specifies, not a designed behavior (confirm with Design whether a shorter/responsive variant should instead be designed explicitly).
-- *No dynamic copy*: all strings (heading, subtext, notification title/body, step labels, button label) are static — there is no interpolated wait-time estimate or step count in the current Figma copy (contrast with an earlier internal prototype of this screen, which had a bracketed "[estimated time]" placeholder in the notification body; that placeholder is not present in this Figma source of truth).
-- *{{onCancel}} is {{null}}*: the button still renders enabled and tappable; pressing it is a no-op rather than being visually disabled — {confirm with Design/Product whether the button should instead be disabled or hidden when no cancel action is available}.
-
-h2. Responsiveness & Links
-
-- No responsive breakpoints are defined in Figma for this node — it is a single fixed 1600×1024 desktop composition, with no separate mobile/tablet variant provided in this file. The only reflow behavior is the engineering-added vertical scroll for short viewports, described above.
-- Figma: [Application loading|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5033-19060]
-- Storybook: [Progress circle filled|https://zeroheight.com/0b922d40b/v/0/p/4022a4-progress-circle-filled]
-- Storybook: [Inline notification|https://zeroheight.com/0b922d40b/v/0/p/5697b4-inline-notification]
-- Storybook: [Container|https://zeroheight.com/0b922d40b/v/0/p/24be69-container]
-- Storybook: [Timeline stepper|https://dentsplysirona.zeroheight.com/styleguide/s/82440/p/969ad9-timeline-stepper]
-- Storybook: [Button|https://zeroheight.com/0b922d40b/v/0/p/156acf-button]
-
-h2. Approvals
-
-||Team involved||Responsible||Status||
-|Design|[~Thomas.Jakob@dentsplysirona.com] ||
-|Product Management|[] ||
-|Product Owner|[] ||
-| | | |
+Relevant links
+Figma Concept: https://www.figma.com/design/lEowX0JA9cpEUra35XnohW/DI-Scan-%C2%B7-Projects?node-id=38640-134098
+Figma Component: https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5025-18863&t=MOk4gFwLNnuKbGym-4
+Flutter Component: application_loading.dart
+Preview: https://ds-thomasja.github.io/di-scan-ux-preview/ (Password: di-scan-loading)
+Component Anatomy & Flutter Mapping
+Element	Flutter Widget	Documentation
+Indeterminate progress circle	DSProgressCircle (variant: indeterminate, child: illustration)	Progress circle (filled)
+Title	Text (style: heading3xl)	n/a
+Subline (time description)	Text (style: textBase, subdued)	n/a
+Inline notification	flutter-inline-notification (variant: info | warning)	Inline notification
+Timeline container	DSContainer	Container
+Timeline stepper	DSTimelineStepper (3 steps: infrastructure, scanData, application)	Timeline stepper
+Cancel action	flutter-button (variant: tertiary)	Button
+Acceptance Criteria
+Functional:
+The page renders a Title ("Loading scan..."), an Indeterminate progress circle, and a "Cancel loading" action at all times.
+Exactly one of {Subline + Timeline stepper} OR {Inline notification} is visible at any time — never both, never neither.
+Activating "Cancel loading" exits the loading page (behaviour target: page where DI Scan was started from).
+States — Time description (elapsed time since load start):
+Waiting for estimate:
+Subline: "Checking wait time...".
+Timeline stepper visible.
+No notification.
+0–10s:
+Subline: "This only takes a moment".
+Timeline stepper visible.
+No notification.
+10–45s:
+Subline: "Ready in about 30 seconds".
+Timeline stepper visible.
+No notification.
+45–80s:
+Subline: "Ready in about a minute".
+Timeline stepper visible.
+No notification.
+80s–2.5min:
+Subline: "Ready in about 2 minutes".
+Timeline stepper visible.
+No notification.
+>2.5min (still loading):
+Subline is removed from the DOM.
+Timeline stepper is removed from the DOM.
+An info Inline notification appears,
+Title: "Taking a little longer than usual"
+Body: "This can take several minutes. Please stay on this screen and do not refresh."
+Timeout (backend reports the load failed):
+Subline is removed from the DOM.
+Timeline stepper is removed from the DOM.
+A warning Inline notification appears,
+Title: "We couldn't finish loading"
+Body: "Something went wrong on our side."
+Transition between any two time-description states uses a 200ms opacity/height transition, easing cubic-bezier(0.4, 0.0, 0.2, 1).
+States — Timeline stepper (per-step, driven by backend events, independent of elapsed time):
+Each of the 3 steps (Infrastructure, Scan data, Application) has 3 mutually exclusive states: Pending, Active, Complete.
+Infrastructure
+Pending: icon Circle (empty), text "Prepare workspace".
+Active: icon Stepper-Active (filled), text "Preparing workspace…".
+Complete: icon Check-Circle-Filled, text "Workspace ready".
+Scan data
+Pending: icon Circle, text "Fetch scan data".
+Active: icon Stepper-Active, text "Fetching scan data…".
+Complete: icon Check-Circle-Filled, text "Scan data ready".
+Application
+Pending: icon Circle, text "Start application".
+Active: icon Stepper-Active, text "Starting application…".
+Complete: icon Check-Circle-Filled, text "Application ready", visible minimum 1500ms.
+Default state on page load:
+Infrastructure = Active,
+Scan data = Pending,
+Application = Pending.
+Step order is fixed (Infrastructure → Scan data → Application); steps do not reorder or skip.
+Visual Fidelity:
+Title:
+Colors: text `var(--text-standard, #242424)`
+Typography: Be Vietnam Pro SemiBold, `var({}text-size-heading3xl, 32px)`, weight 600, line-height `var({}text-lh-heading3xl, 40px)`, letter-spacing `var({-}-text-ls-heading3xl, -0.8px)`, centered
+Sizing: max-width 512px, full width within container
+Storybook: Typography
+Subline (time description):
+Colors: text `var(--text-subdued, #575757)`
+Typography: Be Vietnam Pro Regular, `var({}text-size-textbase, 16px)`, weight 400, line-height `var({}text-lh-textbase, 24px)`, letter-spacing `var({-}-text-ls-textbase, -0.4px)`, centered
+Spacing: 8px gap below Title
+Inline notification:
+Colors (info): background `var({}surface-information-subdued, #eaf5fa)`, border `var({}border-information, #24759e)`, icon `var({-}-icon-information, #24759e)`
+Colors (warning): background `var({}surface-warning-subdued, #fef5ec)`, border `var({}border-warning, #e47e11)`, icon `var({-}-icon-warning, #e47e11)`
+Typography (title): Be Vietnam Pro SemiBold, `var({}text-size-headingbase, 16px)`, line-height `var({}text-lh-headingbase, 24px)`, letter-spacing `var({-}-text-ls-headingbase, -0.4px)`
+Typography (body): Be Vietnam Pro Regular, `var({}text-size-textbase, 16px)`, line-height `var({}text-lh-textbase, 24px)`, letter-spacing `var({-}-text-ls-textbase, -0.4px)`
+Border: 1px solid (colour per variant above), radius `var(--border-radius-standard, 12px)`
+Spacing: padding 8px 4px 8px 12px, 8px gap between icon and body
+Sizing: icon 24×24px, container overflow: none (single-line title, wrapping body)
+Storybook: Inline notification
+Timeline stepper container:
+Colors: background `var(--surface-standard, #ffffff)`
+Border: none, radius `var(--border-radius-large, 16px)`
+Spacing: padding 24px, 16px gap between steps
+Sizing: max-width 400px, full width
+Timeline step:
+Colors: connector line `var({}surface-neutral-standard, #d7d7d7)`; text `var({-}-text-standard, #242424)` in all 3 states (colour does not change — only icon and copy change)
+Typography: Be Vietnam Pro SemiBold, `var({}text-size-textbasestrong, 16px)`, line-height `var({}text-lh-textbasestrong, 24px)`, letter-spacing `var({-}-text-ls-textbasestrong, -0.4px)`, single line with ellipsis truncation
+Sizing: icon 24×24px, container overflow: hidden with `text-overflow: ellipsis` on the step label
+Storybook: Timeline stepper
+Cancel loading (button):
+Colors: text `var(--text-standard, #242424)`, background transparent
+Typography: Be Vietnam Pro SemiBold, `var({}text-size-textaction, 14px)`, line-height `var({}text-lh-textaction, 24px)`, letter-spacing `var({-}-text-ls-textaction, -0.35px)`, centered
+Border: none, radius `var(--border-radius-standard, 12px)`
+Spacing: padding 8px 16px
+Storybook: Button
+Content Logic & Edge Cases
+Subline and Inline notification are mutually exclusive — the subline is removed from the DOM entirely (not merely hidden) once the >2.5min or Timeout state is reached, matching the Figma instance overrides for those two states.
+Timeline stepper and Inline notification are mutually exclusive — the stepper is removed from the DOM entirely once a notification (info or warning) is shown, per the same Figma instance overrides.
+Step label text always reflects the step's current state (Pending / Active / Complete) verbatim per the table above — no other copy variants exist in the supplied design.
+Step label is single-line; if a future longer label overflows 320px width, truncate with ellipsis (`text-overflow: ellipsis`) rather than wrapping.

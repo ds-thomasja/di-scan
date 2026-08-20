@@ -50,6 +50,38 @@ class ApplicationLoading extends StatelessWidget {
   /// needs a bounded height at all.
   static const double _timelineFallbackMaxHeight = 1024;
 
+  /// Duration and easing for the notification/timeline show-hide transition.
+  /// [Curves.easeInOutSine] has no sharp acceleration at either end — of the
+  /// standard easing curves it reads as the softest/gentlest, unlike the
+  /// Figma spec's sharper cubic-bezier(0.4, 0.0, 0.2, 1). Duration is nudged
+  /// up slightly from the spec's 200ms to 320ms so the softer curve has room
+  /// to read as gentle rather than merely slow.
+  static const Duration _transitionDuration = Duration(milliseconds: 320);
+  static const Curve _transitionCurve = Curves.easeInOutSine;
+
+  /// Fades and resizes [child] in/out instead of letting it appear/disappear
+  /// with an instant height jump. Kept to a single fade+size pairing (no
+  /// bounce, overshoot, or staggering) so the motion reads as a subtle easing
+  /// of the layout rather than a standalone animation.
+  ///
+  /// [child] is wrapped in a [Center] before entering [SizeTransition]:
+  /// `SizeTransition` always left-aligns its child on the cross axis when
+  /// animating vertically (its `axisAlignment` only affects the main axis),
+  /// so without it the notification/timeline content would hug the left
+  /// edge instead of staying centred like the rest of the screen.
+  static Widget _animatedSection({required bool visible, required Widget child}) {
+    return AnimatedSwitcher(
+      duration: _transitionDuration,
+      switchInCurve: _transitionCurve,
+      switchOutCurve: _transitionCurve,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SizeTransition(sizeFactor: animation, child: Center(child: child)),
+      ),
+      child: visible ? child : const SizedBox.shrink(key: ValueKey('hidden')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
@@ -131,65 +163,81 @@ class ApplicationLoading extends StatelessWidget {
             ),
           ),
         ),
-        if (notification) ...[
-          SizedBox(height: tokens.spacing.layout.m),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
-            child: Padding(
-              padding:
-                  EdgeInsets.symmetric(horizontal: tokens.spacing.component.l),
-              child: DSInlineNotification(
-                notificationType: DSNotificationType.information,
-                title: 'Taking a little longer than usual',
-                message: 'This can take several minutes. Please stay on this '
-                    'screen and do not refresh.',
-              ),
-            ),
-          ),
-        ],
-        if (timeline) ...[
-          SizedBox(height: tokens.spacing.layout.m),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _timelineMaxWidth),
-            child: DSContainer(
-              padding: EdgeInsets.all(tokens.spacing.layout.m),
-              // DSTimelineStepper is a shrink-wrapping scroll view, which
-              // cannot be laid out with an unbounded height (its sliver
-              // geometry ends up with a NaN cache extent). The surrounding
-              // scroll view provides exactly that, so cap the stepper at the
-              // viewport height — well above the height of three collapsed
-              // steps, so it still shrink-wraps to its content.
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: viewportHeight),
-                child: DSTimelineStepper(
-                  // The steps are progress read-outs, not interactive
-                  // disclosures: `enabled: false` stops them expanding while
-                  // `isReadOnly: true` keeps the enabled (non-greyed) styling.
-                  steps: [
-                    DSTimelineStep(
-                      type: DSTimelineStepType.active,
-                      headline: 'Preparing workspace…',
-                      enabled: false,
-                      isReadOnly: true,
-                    ),
-                    DSTimelineStep(
-                      type: DSTimelineStepType.future,
-                      headline: 'Fetch scan data',
-                      enabled: false,
-                      isReadOnly: true,
-                    ),
-                    DSTimelineStep(
-                      type: DSTimelineStepType.future,
-                      headline: 'Start application',
-                      enabled: false,
-                      isReadOnly: true,
-                    ),
-                  ],
+        _animatedSection(
+          visible: notification,
+          child: Column(
+            key: const ValueKey('notification'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: tokens.spacing.layout.m),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: tokens.spacing.component.l),
+                  child: DSInlineNotification(
+                    notificationType: DSNotificationType.information,
+                    title: 'Taking a little longer than usual',
+                    message: 'This can take several minutes. Please stay on '
+                        'this screen and do not refresh.',
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
+        _animatedSection(
+          visible: timeline,
+          child: Column(
+            key: const ValueKey('timeline'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: tokens.spacing.layout.m),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _timelineMaxWidth),
+                child: DSContainer(
+                  padding: EdgeInsets.all(tokens.spacing.layout.m),
+                  // DSTimelineStepper is a shrink-wrapping scroll view, which
+                  // cannot be laid out with an unbounded height (its sliver
+                  // geometry ends up with a NaN cache extent). The
+                  // surrounding scroll view provides exactly that, so cap the
+                  // stepper at the viewport height — well above the height of
+                  // three collapsed steps, so it still shrink-wraps to its
+                  // content.
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: viewportHeight),
+                    child: DSTimelineStepper(
+                      // The steps are progress read-outs, not interactive
+                      // disclosures: `enabled: false` stops them expanding
+                      // while `isReadOnly: true` keeps the enabled
+                      // (non-greyed) styling.
+                      steps: [
+                        DSTimelineStep(
+                          type: DSTimelineStepType.active,
+                          headline: 'Preparing workspace…',
+                          enabled: false,
+                          isReadOnly: true,
+                        ),
+                        DSTimelineStep(
+                          type: DSTimelineStepType.future,
+                          headline: 'Fetch scan data',
+                          enabled: false,
+                          isReadOnly: true,
+                        ),
+                        DSTimelineStep(
+                          type: DSTimelineStepType.future,
+                          headline: 'Start application',
+                          enabled: false,
+                          isReadOnly: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         SizedBox(height: tokens.spacing.layout.m),
         DSButton.tertiary(
           buttonText: 'Cancel loading',
