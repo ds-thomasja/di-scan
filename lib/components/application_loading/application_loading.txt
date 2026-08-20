@@ -9,78 +9,43 @@ Flutter Component: application_loading.dart
 Preview: https://ds-thomasja.github.io/di-scan-ux-preview/ (Password: di-scan-loading)
 Component Anatomy & Flutter Mapping
 Element	Flutter Widget	Documentation
-Indeterminate progress circle	DSProgressCircle (variant: indeterminate, child: illustration)	Progress circle (filled)
-Title	Text (style: heading3xl)	n/a
-Subline (time description)	Text (style: textBase, subdued)	n/a
-Inline notification	flutter-inline-notification (variant: info | warning)	Inline notification
-Timeline container	DSContainer	Container
-Timeline stepper	DSTimelineStepper (3 steps: infrastructure, scanData, application)	Timeline stepper
-Cancel action	flutter-button (variant: tertiary)	Button
+Indeterminate progress circle	DSProgressCircleFilled.withImage	Progress circle (filled)
+Title	Text (style: heading3xl), fixed copy "Loading scan..."	n/a
+Subline	Text (style: textBase, subdued), via the `subline` prop	n/a
+Inline notification	DSInlineNotification (notificationType: information), fixed copy, via the `notification` prop	Inline notification
+Timeline container	DSContainer, via the `timeline` prop	Container
+Timeline stepper	DSTimelineStepper, 3 fixed DSTimelineStep entries (see States below)	Timeline stepper
+Cancel action	DSButton.tertiary, via the `onCancel` prop	Button
+Component Props
+Prop	Type	Default	Description
+subline	String	"This may take a few seconds"	Subtext shown under the heading. Swapping it cross-fades in place at a constant height if the new text wraps to the same number of lines as the old; if the line count changes, the swap also animates height (see Motion below).
+notification	bool	true	Shows/hides the "Taking a little longer than usual" inline notification. Fixed copy — the component has no warning/timeout variant.
+timeline	bool	true	Shows/hides the 3-step timeline card. The 3 steps are fixed content (see States below) — the component does not accept per-step state as input.
+onCancel	VoidCallback?	null	Called when "Cancel loading" is pressed. The button stays enabled when null; pressing it is then a no-op.
 Acceptance Criteria
 Functional:
 The page renders a Title ("Loading scan..."), an Indeterminate progress circle, and a "Cancel loading" action at all times.
-Exactly one of {Subline + Timeline stepper} OR {Inline notification} is visible at any time — never both, never neither.
+`notification` and `timeline` are independent booleans set by the caller — the component itself does not enforce any mutual exclusivity between them and the subline (see Design Intent below for the intended caller-side behavior).
 Activating "Cancel loading" exits the loading page (behaviour target: page where DI Scan was started from).
-States — Time description (elapsed time since load start):
-Waiting for estimate:
-Subline: "Checking wait time...".
-Timeline stepper visible.
-No notification.
-0–10s:
-Subline: "This only takes a moment".
-Timeline stepper visible.
-No notification.
-10–45s:
-Subline: "Ready in about 30 seconds".
-Timeline stepper visible.
-No notification.
-45–80s:
-Subline: "Ready in about a minute".
-Timeline stepper visible.
-No notification.
-80s–2.5min:
-Subline: "Ready in about 2 minutes".
-Timeline stepper visible.
-No notification.
->2.5min (still loading):
-Subline is removed from the DOM.
-Timeline stepper is removed from the DOM.
-An info Inline notification appears,
-Title: "Taking a little longer than usual"
-Body: "This can take several minutes. Please stay on this screen and do not refresh."
-Timeout (backend reports the load failed):
-Subline is removed from the DOM.
-Timeline stepper is removed from the DOM.
-A warning Inline notification appears,
-Title: "We couldn't finish loading"
-Body: "Something went wrong on our side."
-Transition between any two time-description states uses a 200ms opacity/height transition, easing cubic-bezier(0.4, 0.0, 0.2, 1). The height component of that transition only applies when the subline's wrapped line count actually changes between the two states (e.g. appearing/disappearing, or wrapping to a different number of lines); a swap between two states whose subline renders as the same number of lines (e.g. "This only takes a moment" → "Ready in about 30 seconds") cross-fades in place at a constant height, with no height animation.
-States — Timeline stepper (per-step, driven by backend events, independent of elapsed time):
-Each of the 3 steps (Infrastructure, Scan data, Application) has 3 mutually exclusive states: Pending, Active, Complete.
-Infrastructure
-Pending: icon Circle (empty), text "Prepare workspace".
-Active: icon Stepper-Active (filled), text "Preparing workspace…".
-Complete: icon Check-Circle-Filled, text "Workspace ready".
-Scan data
-Pending: icon Circle, text "Fetch scan data".
-Active: icon Stepper-Active, text "Fetching scan data…".
-Complete: icon Check-Circle-Filled, text "Scan data ready".
-Application
-Pending: icon Circle, text "Start application".
-Active: icon Stepper-Active, text "Starting application…".
-Complete: icon Check-Circle-Filled, text "Application ready", visible minimum 1500ms.
-Default state on page load:
-Infrastructure = Active,
-Scan data = Pending,
-Application = Pending.
-Step order is fixed (Infrastructure → Scan data → Application); steps do not reorder or skip.
+States — Timeline stepper (fixed content, not configurable via props):
+Infrastructure: icon Stepper-Active (filled), text "Preparing workspace…" — always shown as the active step.
+Scan data: icon Circle (empty), text "Fetch scan data" — always shown as an upcoming step.
+Application: icon Circle (empty), text "Start application" — always shown as an upcoming step.
+Motion:
+The `notification` and `timeline` show/hide transitions, and the `subline` text swap, use a 320ms opacity/height transition with an easeInOutSine curve (softer than the Figma spec's 200ms cubic-bezier(0.4, 0.0, 0.2, 1) — a deliberate implementation choice for a gentler feel; not pixel/timing-identical to Figma).
+The height component of the subline's transition only applies when its wrapped line count actually changes (e.g. wrapping to a different number of lines); a swap between two same-line-count strings (e.g. "This only takes a moment" → "Ready in about 30 seconds") cross-fades in place at a constant height, with no height animation.
+Design Intent — not implemented in this component (caller-owned behaviour for whoever assembles the real loading page; documented here as the target design, since it motivated the `subline`/`notification`/`timeline` props):
+Exactly one of {Subline + Timeline stepper} OR {Inline notification} is intended to be visible at any time — never both, never neither — by driving `notification`/`timeline` accordingly; the component does not enforce this itself.
+Elapsed time since load start is intended to drive `subline` through: "Checking wait time..." (waiting for estimate) → "This only takes a moment" (0–10s) → "Ready in about 30 seconds" (10–45s) → "Ready in about a minute" (45–80s) → "Ready in about 2 minutes" (80s–2.5min) → beyond 2.5min, set `notification = true` and `timeline = false` instead of a subline (info copy: "Taking a little longer than usual" / "This can take several minutes. Please stay on this screen and do not refresh.").
+On a backend-reported timeout, the intended notification copy is a warning variant ("We couldn't finish loading" / "Something went wrong on our side.") — not available today, since `notification`'s type is hardcoded to information.
+The 3 timeline steps are intended to be independently driven by backend events (each of Infrastructure/Scan data/Application cycling Pending → Active → Complete, with Application's Complete state visible a minimum of 1500ms) — not available today, since the stepper's 3 steps are fixed content, not props.
 Visual Fidelity:
 Title:
 Colors: text `var(--text-standard, #242424)`
 Typography: Be Vietnam Pro SemiBold, `var({}text-size-heading3xl, 32px)`, weight 600, line-height `var({}text-lh-heading3xl, 40px)`, letter-spacing `var({-}-text-ls-heading3xl, -0.8px)`, centered
 Sizing: max-width 512px, full width within container
 Storybook: Typography
-Subline (time description):
+Subline:
 Colors: text `var(--text-subdued, #575757)`
 Typography: Be Vietnam Pro Regular, `var({}text-size-textbase, 16px)`, weight 400, line-height `var({}text-lh-textbase, 24px)`, letter-spacing `var({-}-text-ls-textbase, -0.4px)`, centered
 Spacing: 8px gap below Title
@@ -110,7 +75,6 @@ Border: none, radius `var(--border-radius-standard, 12px)`
 Spacing: padding 8px 16px
 Storybook: Button
 Content Logic & Edge Cases
-Subline and Inline notification are mutually exclusive — the subline is removed from the DOM entirely (not merely hidden) once the >2.5min or Timeout state is reached, matching the Figma instance overrides for those two states.
-Timeline stepper and Inline notification are mutually exclusive — the stepper is removed from the DOM entirely once a notification (info or warning) is shown, per the same Figma instance overrides.
-Step label text always reflects the step's current state (Pending / Active / Complete) verbatim per the table above — no other copy variants exist in the supplied design.
+The subline is always rendered regardless of `notification`/`timeline`, and there is no prop to remove it — the Figma instance overrides that remove it entirely once a notification is shown (Design Intent above) are not implemented; a caller wanting that behavior must be given that capability in a future change to this component.
+Both optional blocks off: with `notification = false` and `timeline = false`, the layout collapses to the progress circle, title, subline, and Cancel button — no placeholder space is reserved for the hidden blocks.
 Step label is single-line; if a future longer label overflows 320px width, truncate with ellipsis (`text-overflow: ellipsis`) rather than wrapping.
