@@ -35,7 +35,7 @@ h2. Component Anatomy & Flutter Mapping
 | Icon Button (Cut-Tool, Trash, Color-Mode) | private {{_IconItem}} — {{Semantics}} + {{DSTooltip}} + {{DSCrudeButton}} ({{DSCrudeButtonThemeData.tertiary}}) + {{DSIcon}} (medium size), following the same pattern already used for the Settings button in {{header_menus.dart}} | [Icon Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button] |
 | Toggle Button (Assistant/Activity, Autorotation, Video-View) | private {{_ToggleItem}} — {{Semantics}} wrapping {{DSToggleButton}} | [Button (toggle)\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button%20(toggle)] |
 | Divider (vertical) | {{DSDivider.vertical}}, stretched to the pill's content height via the parent {{_ToolbarPill}}'s {{IntrinsicHeight}} + {{CrossAxisAlignment.stretch}} | [Divider\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Divider] |
-| Tooltip (all buttons) | {{DSTooltip}} — message only; this DS version's {{DSTooltip}} takes no position/delay parameters, so placement and hover delay come entirely from the DS theme default, not from this component | [Tooltip\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Tooltip] |
+| Tooltip (all buttons) | private {{_ToolbarTooltip}} — a plain Flutter {{Tooltip}} styled from the same public tokens {{DSTooltipThemeData}} itself reads, with {{preferBelow: false}} forced. {{DSTooltip}} (and {{DSToggleButton}}'s built-in {{tooltip}} param) hard-codes {{preferBelow: true}} with no override in this DS version, which would open the tooltip downward off the bottom-anchored toolbar — see code comment in {{toolbar.dart}} | [Tooltip\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Tooltip] |
 
 
 h2. Acceptance Criteria
@@ -54,7 +54,7 @@ h2. Acceptance Criteria
  -- No disabled state is defined for any button in this component, per the design definition; passing {{null}} for a callback only makes the button inert, it does not render a disabled look.
 
  - *Tooltip:*
- -- Every button renders a {{DSTooltip}} with the label below. Positioning and hover delay are the DS default (this component cannot override them — see Anatomy above); the design definition's "300 ms delay, appears above" holds in the intended bottom-anchored usage but is not something this component enforces.
+ -- Every button renders a tooltip with the label below, forced to open *above* the button (see Anatomy above) — matching the design definition, since the toolbar is anchored at the bottom of the viewport and a downward-opening tooltip would run off screen. Hover delay ({{300 ms}}) and all other visual styling still come from the same public DS tokens {{DSTooltipThemeData}} reads; only {{preferBelow}} is overridden. Verified visually in Chrome (hovering both a plain Icon Button and a Toggle Button renders the tooltip above the pill).
  -- Labels: Activity → "Assistant"; Cut-Tool → "Cut scan"; Trash → "Reset selected scan data"; Color-Mode → "Change appearance"; Autorotation → "Toggle autorotation"; Video-View → "Toggle live view".
  -- Tooltip visibility is independent of a button's selected/unselected state.
 

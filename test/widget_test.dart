@@ -1,5 +1,6 @@
 import 'dart:ui' show Size;
 
+import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightning_core_ui/lightning_core_ui.dart';
 
@@ -123,9 +124,9 @@ void main() {
     ]) {
       expect(
         find.byWidgetPredicate(
-            (widget) => widget is DSTooltip && widget.message == message),
+            (widget) => widget is Tooltip && widget.message == message),
         findsOneWidget,
-        reason: 'expected a DSTooltip with message "$message"',
+        reason: 'expected a Tooltip with message "$message"',
       );
     }
 
@@ -139,15 +140,21 @@ void main() {
     expect(inToolbar(find.byType(DSCrudeButton)), findsNWidgets(5));
     expect(
       find.byWidgetPredicate(
-          (widget) => widget is DSTooltip && widget.message == 'Assistant'),
+          (widget) => widget is Tooltip && widget.message == 'Assistant'),
       findsNothing,
     );
 
     // The toggles are host-owned: the sidebar switches drive their selected
-    // state straight through to DSToggleButton.selected.
+    // state straight through to DSToggleButton.selected. The tooltip message
+    // is now on the wrapping Tooltip (see _ToolbarTooltip), not on
+    // DSToggleButton.tooltip, so look up the DSToggleButton descendant of the
+    // Tooltip carrying that message instead.
     DSToggleButton toggleWithTooltip(String message) => tester.widget(
-          find.byWidgetPredicate((widget) =>
-              widget is DSToggleButton && widget.tooltip == message),
+          find.descendant(
+            of: find.byWidgetPredicate(
+                (widget) => widget is Tooltip && widget.message == message),
+            matching: find.byType(DSToggleButton),
+          ),
         );
 
     expect(toggleWithTooltip('Toggle live view').selected, isFalse);
@@ -167,7 +174,7 @@ void main() {
     expect(find.text('No action triggered yet'), findsOneWidget);
 
     await tester.tap(find.byWidgetPredicate(
-        (widget) => widget is DSTooltip && widget.message == 'Cut scan'));
+        (widget) => widget is Tooltip && widget.message == 'Cut scan'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 

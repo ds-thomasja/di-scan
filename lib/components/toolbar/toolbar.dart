@@ -242,7 +242,7 @@ class _ToolbarPill extends StatelessWidget {
 /// pattern already used for the Settings anchor button in `header_menus.dart`:
 /// a [DSCrudeButton] with the tertiary theme (transparent at rest, with the
 /// standard DS hover/pressed backgrounds) wrapping a medium [DSIcon] padded by
-/// `spacing/component/xs`, all inside a [DSTooltip]. That yields the 8 px
+/// `spacing/component/xs`, all inside a [_ToolbarTooltip]. That yields the 8 px
 /// padding around a 24 px icon — a 40x40 px tap target — that the design
 /// definition specifies, and it matches the intrinsic size of the neighbouring
 /// [DSToggleButton]s so the pill's dividers line up with them.
@@ -267,7 +267,7 @@ class _IconItem extends StatelessWidget {
       container: true,
       button: true,
       label: semanticsLabel,
-      child: DSTooltip(
+      child: _ToolbarTooltip(
         message: tooltip,
         child: DSCrudeButton(
           themeData: DSCrudeButtonThemeData.tertiary(tokens),
@@ -287,10 +287,12 @@ class _IconItem extends StatelessWidget {
 
 /// A toggle button inside a toolbar pill.
 ///
-/// A thin wrapper over [DSToggleButton] that only adds the accessible label
-/// required by the design definition — the icon, tooltip, padding and the
-/// `surface-selected/standard` selected background all come from
-/// [DSToggleButton] itself.
+/// A thin wrapper over [DSToggleButton] that adds the accessible label
+/// required by the design definition and overrides its tooltip placement —
+/// the icon, padding and the `surface-selected/standard` selected background
+/// all come from [DSToggleButton] itself, but its *tooltip* param is left
+/// unset in favour of wrapping the whole button in [_ToolbarTooltip]: see
+/// that widget's doc comment for why.
 class _ToggleItem extends StatelessWidget {
   const _ToggleItem({
     required this.icon,
@@ -313,12 +315,63 @@ class _ToggleItem extends StatelessWidget {
       button: true,
       toggled: selected,
       label: semanticsLabel,
-      child: DSToggleButton(
-        icon: icon,
-        tooltip: tooltip,
-        selected: selected,
-        onPressed: onPressed,
+      child: _ToolbarTooltip(
+        message: tooltip,
+        child: DSToggleButton(
+          icon: icon,
+          selected: selected,
+          onPressed: onPressed,
+        ),
       ),
+    );
+  }
+}
+
+/// A tooltip for a toolbar button that always prefers showing *above* its
+/// child, matching the design definition (the Toolbar is anchored at the
+/// bottom of the viewport, so a tooltip opening downward would run off
+/// screen).
+///
+/// [DSTooltip] (and, through it, [DSToggleButton]'s built-in `tooltip` param)
+/// hard-codes `preferBelow: true` via the internal, unexported
+/// `DSTooltipThemeData` in this DS version, with no constructor parameter to
+/// override it — confirmed by reading `lib/src/theme/components/token_based/
+/// ds_tooltip_theme_data.dart` in the pinned v51.0.0 checkout. Rather than
+/// reach into `lib/src`, this rebuilds the same visual styling directly from
+/// the public tokens that class itself reads (`surface.contrast`,
+/// `text.textXs`/`text.onContrast`, `border.radius.small`,
+/// `shadows.elevation2`, `spacing.component.xs`/`xxs`,
+/// `animation.duration.macroForward`) around a plain Flutter [Tooltip] with
+/// `preferBelow: false`.
+class _ToolbarTooltip extends StatelessWidget {
+  const _ToolbarTooltip({required this.message, required this.child});
+
+  final String message;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return Tooltip(
+      message: message,
+      preferBelow: false,
+      // Half of the 40 px button tap target (8 px padding + 24 px icon),
+      // matching DSTooltipWrapper's own `anchorSize.height / 2`.
+      verticalOffset: 20,
+      margin: EdgeInsets.all(tokens.spacing.component.xxs),
+      waitDuration: tokens.animation.duration.macroForward,
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spacing.component.xs,
+        vertical: tokens.spacing.component.xxs,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(tokens.border.radius.small),
+        color: tokens.surface.contrast,
+        boxShadow: tokens.shadows.elevation2,
+      ),
+      textStyle: tokens.text.textXs.copyWith(color: tokens.text.onContrast),
+      child: child,
     );
   }
 }
