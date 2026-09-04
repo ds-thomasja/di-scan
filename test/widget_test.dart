@@ -7,6 +7,7 @@ import 'package:di_scan/components/application_loading/application_loading.dart'
 import 'package:di_scan/components/catalog_card/catalog_card.dart';
 import 'package:di_scan/components/catalog_list/catalog_list.dart';
 import 'package:di_scan/components/header_menus/header_menus.dart';
+import 'package:di_scan/components/toolbar/toolbar.dart';
 import 'package:di_scan/main.dart';
 
 void main() {
@@ -27,6 +28,7 @@ void main() {
     expect(find.text('CatalogCard'), findsOneWidget);
     expect(find.text('CatalogList'), findsOneWidget);
     expect(find.text('HeaderMenus'), findsOneWidget);
+    expect(find.text('Toolbar'), findsOneWidget);
 
     // ApplicationLoading is first alphabetically, so it's selected by default:
     // its label appears both in the sidebar and as the content heading.
@@ -35,6 +37,7 @@ void main() {
     expect(find.byType(CatalogCard), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
     expect(find.byType(HeaderMenus), findsNothing);
+    expect(find.byType(Toolbar), findsNothing);
 
     // Selecting CatalogCard in the sidebar swaps the main content.
     await tester.tap(find.text('CatalogCard'));
@@ -67,6 +70,109 @@ void main() {
     expect(find.byType(HeaderMenus), findsOneWidget);
     expect(find.byType(CatalogCard), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
+    expect(find.byType(Toolbar), findsNothing);
+
+    // Selecting Toolbar in the sidebar swaps the main content again.
+    await tester.tap(find.text('Toolbar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Toolbar'), findsNWidgets(2));
+    expect(find.byType(Toolbar), findsOneWidget);
+    expect(find.byType(HeaderMenus), findsNothing);
+  });
+
+  testWidgets(
+      'Toolbar playground renders both pills, toggles them and reports icon '
+      'button actions', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('Toolbar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Everything below is scoped to the Toolbar itself, so the gallery's own
+    // chrome (sidebar, section divider, control switches) can't be counted by
+    // accident.
+    Finder inToolbar(Finder matching) =>
+        find.descendant(of: find.byType(Toolbar), matching: matching);
+
+    // The Assistant pill is on by default, so both pills render six buttons
+    // in total: three DSToggleButtons plus three plain icon buttons, which are
+    // DSCrudeButtons too — as is each DSToggleButton internally, hence 6.
+    expect(inToolbar(find.byType(DSToggleButton)), findsNWidgets(3));
+    expect(inToolbar(find.byType(DSCrudeButton)), findsNWidgets(6));
+    // The main pill's three groups are separated by two vertical dividers;
+    // the single-group Assistant pill has none.
+    expect(inToolbar(find.byType(DSDivider)), findsNWidgets(2));
+
+    // Every button carries its design-definition tooltip message.
+    for (final message in [
+      'Assistant',
+      'Cut scan',
+      'Reset selected scan data',
+      'Change appearance',
+      'Toggle autorotation',
+      'Toggle live view',
+    ]) {
+      expect(
+        find.byWidgetPredicate(
+            (widget) => widget is DSTooltip && widget.message == message),
+        findsOneWidget,
+        reason: 'expected a DSTooltip with message "$message"',
+      );
+    }
+
+    // Turning the "Assistant pill" switch off drops the Assistant pill, so
+    // only the main pill and its two toggles remain.
+    await tester.tap(find.text('Assistant pill'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(inToolbar(find.byType(DSToggleButton)), findsNWidgets(2));
+    expect(inToolbar(find.byType(DSCrudeButton)), findsNWidgets(5));
+    expect(
+      find.byWidgetPredicate(
+          (widget) => widget is DSTooltip && widget.message == 'Assistant'),
+      findsNothing,
+    );
+
+    // The toggles are host-owned: the sidebar switches drive their selected
+    // state straight through to DSToggleButton.selected.
+    DSToggleButton toggleWithTooltip(String message) => tester.widget(
+          find.byWidgetPredicate((widget) =>
+              widget is DSToggleButton && widget.tooltip == message),
+        );
+
+    expect(toggleWithTooltip('Toggle live view').selected, isFalse);
+    await tester.tap(find.text('Video-View active'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(toggleWithTooltip('Toggle live view').selected, isTrue);
+
+    expect(toggleWithTooltip('Toggle autorotation').selected, isFalse);
+    await tester.tap(find.text('Autorotation active'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(toggleWithTooltip('Toggle autorotation').selected, isTrue);
+
+    // The plain icon buttons fire their VoidCallback, which the playground
+    // surfaces in its "last action" caption.
+    expect(find.text('No action triggered yet'), findsOneWidget);
+
+    await tester.tap(find.byWidgetPredicate(
+        (widget) => widget is DSTooltip && widget.message == 'Cut scan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Last action: Cut-Tool'), findsOneWidget);
+    expect(find.text('No action triggered yet'), findsNothing);
   });
 
   testWidgets(

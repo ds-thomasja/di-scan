@@ -1,0 +1,127 @@
+h2. User Story
+
+As a clinical user, I want a floating toolbar anchored at the bottom centre of the 3D viewport so that I can access scan controls and toggle video view without leaving the scanning workflow.
+
+
+h2. Design Definition & Assets
+
+- Figma Link: [Toolbar|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=2815-22380]
+- Figma Behavior: [Toolbar — Behavior|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4073-13541]
+- Design Definition (Jira): [S3806-5062|https://jira.dentsplysirona.com/browse/S3806-5062] — status *Draft*; Design and Product Management approved, Product Owner approval pending.
+- Flutter Component: TBD — {{lib/components/toolbar/toolbar.dart}} is written but not yet committed/pushed to {{origin/main}} (verified via {{git status}}/{{git rev-parse}} in the {{di scan}} repo).
+- Interaction Model: The Toolbar is a floating overlay positioned at the bottom centre of the *3D viewport area*. It comprises up to two pill-shaped containers, laid out in a single {{Row}} with a `spacing/component/xxs` (4 px) gap between them. The optional *Assistant pill* ({{assistant}}, default {{true}}) holds a single Toggle Button (Activity icon) that is meant to open the Workflow Assistant panel. The permanent *Main pill* groups three sub-groups separated by vertical Dividers: (1) Cut-Tool and Trash Icon Buttons, (2) Color-Mode Icon Button and an Autorotation Toggle Button, (3) a Video-View Toggle Button. Icon Buttons fire their callback immediately with no persistent visual state change. All three Toggle Buttons ({{assistantActive}}, {{autorotationActive}}, {{videoViewActive}}) are host-owned per [DSToggleButton]'s contract — the Toolbar itself never mutates them. The component only renders the two pills; it does not open the Assistant panel, wire a Scan Live View panel, or apply any {{Positioned}}/{{Stack}} placement itself — all of that is caller-owned (see Content Logic & Edge Cases).
+
+
+h2. Component Props
+
+|| Prop || Type || Default || Description ||
+| {{assistant}} | {{bool}} | {{true}} | Whether the Assistant pill renders to the left of the Main pill. |
+| {{assistantActive}} | {{bool}} | {{false}} | Host-owned selected state of the Assistant Toggle Button. |
+| {{onAssistantPressed}} | {{VoidCallback?}} | {{null}} | Called when the Assistant Toggle Button is pressed; the host is expected to flip {{assistantActive}} in response. |
+| {{onCutTool}} | {{VoidCallback?}} | {{null}} | Called when the Cut-Tool Icon Button is pressed. |
+| {{onTrash}} | {{VoidCallback?}} | {{null}} | Called when the Trash Icon Button is pressed. |
+| {{onColorMode}} | {{VoidCallback?}} | {{null}} | Called when the Color-Mode Icon Button is pressed. |
+| {{autorotationActive}} | {{bool}} | {{false}} | Host-owned selected state of the Autorotation Toggle Button. |
+| {{onAutorotationPressed}} | {{VoidCallback?}} | {{null}} | Called when the Autorotation Toggle Button is pressed; the host is expected to flip {{autorotationActive}} in response. |
+| {{videoViewActive}} | {{bool}} | {{false}} | Host-owned selected state of the Video-View Toggle Button. |
+| {{onVideoViewPressed}} | {{VoidCallback?}} | {{null}} | Called when the Video-View Toggle Button is pressed; the host is expected to flip {{videoViewActive}} in response. |
+
+
+h2. Component Anatomy & Flutter Mapping
+
+|| Element || Flutter Widget || Documentation ||
+| Root container | {{Row}} ({{MainAxisSize.min}}, {{CrossAxisAlignment.center}}) with a {{SizedBox(width: tokens.spacing.component.xxs)}} gap; conditionally includes the Assistant pill | n/a |
+| Assistant pill / Main pill | private {{_ToolbarPill}} — {{DecoratedBox}} + {{Padding}} + {{IntrinsicHeight}} + {{Row}}. The DS library has an internal widget for this exact shape ({{DSFocusModeToolbar}}), but it is not re-exported from {{lightning_core_ui.dart}} in any published tag through v52.0.0 (this project is pinned to v51.0.0), so it cannot be used without reaching into {{lib/src}}. {{_ToolbarPill}} is composed instead from the same tokens {{DSFocusModeToolbarThemeData}} itself reads ({{surface.standard}}, {{border.radius.standard}}, {{shadows.elevation1}}, {{spacing.component.xs}}) — token-equivalent, not hand-tuned. | n/a — see code comment in {{toolbar.dart}} for the full token mapping table |
+| Icon Button (Cut-Tool, Trash, Color-Mode) | private {{_IconItem}} — {{Semantics}} + {{DSTooltip}} + {{DSCrudeButton}} ({{DSCrudeButtonThemeData.tertiary}}) + {{DSIcon}} (medium size), following the same pattern already used for the Settings button in {{header_menus.dart}} | [Icon Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button] |
+| Toggle Button (Assistant/Activity, Autorotation, Video-View) | private {{_ToggleItem}} — {{Semantics}} wrapping {{DSToggleButton}} | [Button (toggle)\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button%20(toggle)] |
+| Divider (vertical) | {{DSDivider.vertical}}, stretched to the pill's content height via the parent {{_ToolbarPill}}'s {{IntrinsicHeight}} + {{CrossAxisAlignment.stretch}} | [Divider\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Divider] |
+| Tooltip (all buttons) | {{DSTooltip}} — message only; this DS version's {{DSTooltip}} takes no position/delay parameters, so placement and hover delay come entirely from the DS theme default, not from this component | [Tooltip\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Tooltip] |
+
+
+h2. Acceptance Criteria
+
+ - *Functional:*
+ -- When {{assistant = true}} (default), the Assistant pill renders to the left of the Main pill with a 4 px gap between them.
+ -- When {{assistant = false}}, the Assistant pill is not rendered; only the Main pill is visible and the gap collapses.
+ -- Tapping the Cut-Tool, Trash or Color-Mode Icon Button fires the respective callback; no persistent visual state change occurs on the button itself.
+ -- The Assistant, Autorotation and Video-View Toggle Buttons render selected (`var(--surface-selected/standard)`) or unselected (transparent) purely from {{assistantActive}} / {{autorotationActive}} / {{videoViewActive}}; the Toolbar never mutates these itself.
+ -- The 4 px gap between the two pills (`var(--spacing/component/xxs)`) is maintained whenever both pills are visible.
+
+ - *States:*
+ -- Icon Button (Cut-Tool, Trash, Color-Mode): transparent background at rest; DS tertiary hover/pressed background on interaction; no disabled state.
+ -- Toggle Button (Assistant, Autorotation, Video-View) unselected: transparent background.
+ -- Toggle Button (Assistant, Autorotation, Video-View) selected: `var(--surface-selected/standard)` background.
+ -- No disabled state is defined for any button in this component, per the design definition; passing {{null}} for a callback only makes the button inert, it does not render a disabled look.
+
+ - *Tooltip:*
+ -- Every button renders a {{DSTooltip}} with the label below. Positioning and hover delay are the DS default (this component cannot override them — see Anatomy above); the design definition's "300 ms delay, appears above" holds in the intended bottom-anchored usage but is not something this component enforces.
+ -- Labels: Activity → "Assistant"; Cut-Tool → "Cut scan"; Trash → "Reset selected scan data"; Color-Mode → "Change appearance"; Autorotation → "Toggle autorotation"; Video-View → "Toggle live view".
+ -- Tooltip visibility is independent of a button's selected/unselected state.
+
+ - *A11y:*
+ -- Each button is wrapped in {{Semantics(container: true, button: true, label: ...)}}: "Cut Tool", "Delete scan", "Color Mode" for the Icon Buttons; "Workflow Assistant", "Video View" for two of the three Toggle Buttons (per the design definition — see open item below for Autorotation). Toggle Buttons additionally set {{toggled: selected}}.
+ -- Effective tap target per button is 40×40 px (8 px padding around a 24 px icon); the design definition asks QA to confirm this satisfies the 44×44 px platform minimum — *not yet confirmed*.
+ -- The design definition asks for each button's icon to be marked {{excludeFromSemantics: true}} as decorative. {{DSIcon}} in this DS version exposes no such parameter, so the implementation instead relies on the outer button-level {{Semantics}} node — *whether this fully replaces the intended effect (i.e. that the icon doesn't also surface as a separate, unlabeled accessibility node) has not been verified and should be confirmed with QA*.
+ -- Colour contrast for `var(--icon/standard)` on `var(--surface/standard)` and on `var(--surface-selected/standard)` is asserted by the design definition to meet WCAG AA; not independently re-verified here.
+
+ - *Visual Fidelity:*
+ -- *Root container:*
+ --- Gap between pills: {{var(--spacing/component/xxs)}} = 4 px
+ --- Background: none (transparent)
+ --- Position: caller-owned (see Content Logic & Edge Cases) — this component does not position itself
+ -- *Assistant pill / Main pill:*
+ --- Background: {{var(--surface/standard, #ffffff)}}
+ --- Padding: {{var(--spacing/component/xs)}} = 8 px (all sides)
+ --- Gap between items: {{var(--spacing/component/xs)}} = 8 px
+ --- Border: none
+ --- Border-radius: {{var(--border/radius/standard)}} = 12 px
+ --- Shadow: {{var(--shadows/elevation-1)}} — layer A: x 0 px, y 1 px, blur 1 px, spread 0 px, colour rgba(0,0,0,0.02); layer B: x 0 px, y 2 px, blur 8 px, spread 0 px, colour rgba(0,0,0,0.04)
+ --- Sizing: shrink-wraps to content; no fixed width or height
+ -- *Icon Button (Cut-Tool, Trash, Color-Mode):*
+ --- Background at rest: transparent
+ --- Border-radius: {{var(--border/radius/standard)}} = 12 px
+ --- Padding: {{var(--spacing/component/xs)}} = 8 px (all sides)
+ --- Icon size: 24×24 px, colour {{var(--icon/standard)}}
+ -- *Toggle Button (Assistant, Autorotation, Video-View) — unselected:*
+ --- Background: transparent; same padding/radius/icon sizing as the Icon Button above
+ -- *Toggle Button (Assistant, Autorotation, Video-View) — selected:*
+ --- Background: {{var(--surface-selected/standard)}}
+ --- Icon colour: {{var(--icon/standard)}} — the design definition flags a possible {{var(--icon/information)}} alternative for the active state as *unconfirmed with Design*; the implementation uses {{var(--icon/standard)}} in both states since {{DSToggleButton}} does not expose a separate active-icon-colour override.
+ -- *Divider (vertical):*
+ --- Width: {{var(--border/width/standard)}} = 1 px; colour {{var(--border/standard)}}
+ --- Height: stretches to the pill's full content height
+
+
+h2. Content Logic & Edge Cases
+
+- *{{assistant = true}} (default):* Both pills render side by side with a 4 px gap; total width = Assistant pill width + 4 px + Main pill width.
+- *{{assistant = false}}:* Only the Main pill renders; total width equals the Main pill's width alone.
+- *Toggle state ownership (Assistant, Autorotation, Video-View):* All three selected states are host-provided props; the Toolbar reads but never writes them, so external events can reset any of them independently of a user tap.
+- *No positioning logic:* Unlike the design definition's description of a {{Positioned}}/{{Stack}} placement at the viewport bottom, the {{Toolbar}} widget itself has no {{Positioned}} or {{Stack}} — the caller is responsible for anchoring it (bottom-centred in the 3D viewport per the design intent) and for reserving space so viewport content doesn't sit underneath it.
+- *No wired side effects:* The design definition's *behaviour* around a Cut-Tool "Model merged" Snackbar and a Video-View ↔ "Scan Live View panel" toggle (both described in an earlier draft of this spec, {{99 Specification OLD/Components/Toolbar/Toolbar.txt}}, but *absent from the current Jira S3806-5062 draft*) are not implemented here — the component only exposes {{onCutTool}}/{{onVideoViewPressed}} callbacks; any snackbar or panel is the caller's responsibility, if still intended. *Confirm with Design/Product whether that behaviour was intentionally dropped from the current draft or still applies.*
+- *Trash naming inconsistency in the source ticket:* S3806-5062's Interaction Model prose calls the second Cut-Tool-group button "Reset", while its own Anatomy table calls the icon "Trash" and its A11y section gives it the accessible label "Delete scan". The implementation follows the table/A11y section (icon {{DSIcons.trash}}, tooltip "Reset selected scan data", label "Delete scan"). *Confirm with Design which term is authoritative.*
+- *Autorotation accessible label:* S3806-5062's A11y section lists accessible labels for the Video-View and Assistant Toggle Buttons but not for Autorotation (added to the Anatomy table without a matching A11y update). The implementation uses "Autorotation" by analogy — *not yet confirmed with Design*.
+- *No disabled state:* Per the design definition, do not implement one; a {{null}} callback is the only way to make a button inert.
+
+
+h2. Responsiveness & Links
+
+- The Toolbar has no fixed width; it shrink-wraps to its content and defines no responsive breakpoints of its own.
+- An earlier draft of this spec described a narrow-viewport shift (toolbar shifting left ~74 px when a Scan Live View panel is open below 1120 px width) — this does not appear in the current Jira S3806-5062 draft and is not implemented; flagged here only for continuity with prior design history, *not* as a current requirement.
+- Figma: [Toolbar|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=2815-22380]
+- Figma Behavior: [Toolbar — Behavior|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4073-13541]
+- Storybook: [Icon Button|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button]
+- Storybook: [Button (toggle)|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button%20(toggle)]
+- Storybook: [Divider|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Divider]
+- Storybook: [Tooltip|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Tooltip]
+
+
+h2. Approvals
+
+||Team involved||Responsible||Status||
+|Design|[~Thomas.Jakob@dentsplysirona.com] | |
+|Product Management|[] | |
+|Product Owner|[] | |
+| | | |
+
+Note: the source Jira ticket [S3806-5062|https://jira.dentsplysirona.com/browse/S3806-5062] itself is already marked Design ✅ / Product Management ✅ / Product Owner pending, as a *Draft*-status ticket — that sign-off is on the design definition ticket, not on this generated implementation-spec document, which needs its own review.

@@ -5,6 +5,7 @@ import 'components/application_loading/application_loading.dart';
 import 'components/catalog_card/catalog_card.dart';
 import 'components/catalog_list/catalog_list.dart';
 import 'components/header_menus/header_menus.dart';
+import 'components/toolbar/toolbar.dart';
 
 void main() {
   runApp(const ComponentPreviewApp());
@@ -65,6 +66,7 @@ final List<_ComponentEntry> _componentEntries = [
   const _ComponentEntry('CatalogCard', _CatalogCardPlayground()),
   const _ComponentEntry('CatalogList', _CatalogListPlayground()),
   const _ComponentEntry('HeaderMenus', _HeaderMenusPlayground()),
+  const _ComponentEntry('Toolbar', _ToolbarPlayground()),
 ]..sort((a, b) => a.name.compareTo(b.name));
 
 /// Shows one component at a time, selected from a sidebar listing every
@@ -628,6 +630,109 @@ class _HeaderMenusPlaygroundState extends State<_HeaderMenusPlayground> {
                 value: _type,
                 onChanged: (value) => setState(() => _type = value ?? _type),
               ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Live, controls-driven preview of [Toolbar]: a switch for the optional
+/// Assistant pill plus one switch per toggle button, since the toolbar's
+/// toggles are host-owned rather than internally stateful.
+///
+/// The three plain icon buttons (Cut-Tool, Trash, Color-Mode) have no
+/// parameters to drive, so instead of no-op callbacks they report into a
+/// small "last action" caption under the preview — that is the only way to
+/// see in the gallery that they actually fire.
+class _ToolbarPlayground extends StatefulWidget {
+  const _ToolbarPlayground();
+
+  @override
+  State<_ToolbarPlayground> createState() => _ToolbarPlaygroundState();
+}
+
+class _ToolbarPlaygroundState extends State<_ToolbarPlayground> {
+  bool _assistant = true;
+  bool _assistantActive = false;
+  bool _autorotationActive = false;
+  bool _videoViewActive = false;
+  String? _lastAction;
+
+  void _report(String action) => setState(() => _lastAction = action);
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+    final lastAction = _lastAction;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'Toolbar',
+              caption: 'A floating overlay normally pinned to the bottom '
+                  'centre of the 3D viewport. Hover a button for its '
+                  'tooltip; the toggles are driven from the right.',
+              child: Column(
+                children: [
+                  Center(
+                    child: Toolbar(
+                      assistant: _assistant,
+                      assistantActive: _assistantActive,
+                      onAssistantPressed: () => setState(
+                          () => _assistantActive = !_assistantActive),
+                      onCutTool: () => _report('Cut-Tool'),
+                      onTrash: () => _report('Trash'),
+                      onColorMode: () => _report('Color-Mode'),
+                      autorotationActive: _autorotationActive,
+                      onAutorotationPressed: () => setState(
+                          () => _autorotationActive = !_autorotationActive),
+                      videoViewActive: _videoViewActive,
+                      onVideoViewPressed: () => setState(
+                          () => _videoViewActive = !_videoViewActive),
+                    ),
+                  ),
+                  SizedBox(height: tokens.spacing.layout.s),
+                  Text(
+                    lastAction == null
+                        ? 'No action triggered yet'
+                        : 'Last action: $lastAction',
+                    style: tokens.text.textSm
+                        .copyWith(color: tokens.text.subdued),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            DSSwitch(
+              label: 'Assistant pill',
+              value: _assistant,
+              onChanged: (value) => setState(() => _assistant = value),
+            ),
+            DSSwitch(
+              label: 'Assistant active',
+              value: _assistantActive,
+              onChanged: (value) => setState(() => _assistantActive = value),
+            ),
+            DSSwitch(
+              label: 'Autorotation active',
+              value: _autorotationActive,
+              onChanged: (value) =>
+                  setState(() => _autorotationActive = value),
+            ),
+            DSSwitch(
+              label: 'Video-View active',
+              value: _videoViewActive,
+              onChanged: (value) => setState(() => _videoViewActive = value),
             ),
           ],
         ),
