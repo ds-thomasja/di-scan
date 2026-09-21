@@ -1,0 +1,109 @@
+h2. User Story
+
+As a clinical user, I want to see all of a case's scan-catalog entries in a single vertical list — with single selection and long-press drag-to-reorder — so that I can review, select, and re-sequence scan steps without leaving the scan catalog view.
+
+
+h2. Design Definition & Assets
+
+- Figma Link: [Catalog List|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4739-14071]
+- Figma Behavior: [.Catalog card drag (Placeholder / Release / Loading / Moving states)|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4750-15310]
+- Flutter Component: [catalog_list.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/catalog_list/catalog_list.dart] — *this link points at the last commit pushed to {{main}}.* The local working tree has newer, uncommitted changes on top of it (a same-day Figma drag-and-drop reconciliation pass — see Content Logic & Edge Cases) which this document already describes; re-verify the link once those changes are committed and pushed.
+- Interaction Model: {{CatalogList}} renders a vertical {{Column}} of {{CatalogCard}} widgets (one per {{CatalogListItem}}), each separated by a {{spacing}}-px gap (default {{12.0}}, matching {{var(--spacing/component/s)}}), followed by the same gap and a full-width secondary "Add scan" button. Selection is single-select and internally owned: tapping a card's {{onSelectedChanged}} callback updates {{_selectedIndex}} and notifies {{onSelectionChanged}} with the new index or {{null}}. Long-pressing a non-disabled, non-loading card starts a drag: a floating copy of that card (always the compact icon layout, regardless of the source card's own {{scanModel}}/expanded state) is inserted into the {{Overlay}} and follows the pointer 1:1 via a {{ValueNotifier<Offset>}}, while the source card itself re-renders as {{isDragSource: true}} (its own placeholder appearance is defined in {{CatalogCard}}'s spec). While dragging, each other card's screen rect (grown by half the list {{spacing}} on top/bottom) is hit-tested against the pointer to compute {{_dragTargetIndex}}; the card currently under the pointer renders {{isDragTarget: true}}. Releasing the press (or a long-press cancel) removes the floating overlay; if a valid target existed, both the source and target indices are marked {{isLoading: true}} for a fixed 2-second timer before clearing (see Content Logic & Edge Cases — the actual reorder/swap of the underlying {{items}} list is *not* performed by this widget itself).
+
+
+h2. Component Props
+
+|| Prop || Type || Default || Description ||
+| {{items}} | {{List<CatalogListItem>}} | required | The ordered list of entries to render, one {{CatalogCard}} per item. |
+| {{selectedIndex}} | {{int?}} | {{null}} | *Initial* selected index only; internal state re-syncs via {{didUpdateWidget}} if this changes externally. {{null}} means nothing selected. |
+| {{spacing}} | {{double}} | {{12.0}} | Vertical gap between cards, and between the last card and the "Add scan" button. |
+| {{onSelectionChanged}} | {{ValueChanged<int?>?}} | {{null}} | Called with the new selected index (or {{null}} on deselect) whenever selection changes. |
+| {{onRemovePressed}} | {{ValueChanged<int>?}} | {{null}} | Called with a card's index when that card's "Remove catalog" action is triggered. |
+| {{onAddPressed}} | {{VoidCallback?}} | {{null}} | Called when the "Add scan" button is pressed. The button renders {{disabled}} (per {{DSButton}}'s own contract) when this is {{null}}. |
+
+|| {{CatalogListItem}} field || Type || Default || Description ||
+| {{name}} | {{String}} | required | Passed straight through to the corresponding {{CatalogCard.name}}. |
+| {{subtext}} | {{String}} | {{''}} | Passed straight through to {{CatalogCard.subtext}}. |
+| {{showSubtext}} | {{bool}} | {{true}} | Passed straight through to {{CatalogCard.showSubtext}}. |
+| {{scanModel}} | {{bool}} | {{false}} | Passed straight through to {{CatalogCard.scanModel}}. |
+| {{scanModelImage}} | {{Widget?}} | {{null}} | Passed straight through to {{CatalogCard.scanModelImage}}. |
+| {{showStatus}} | {{bool}} | {{false}} | Passed straight through to {{CatalogCard.showStatus}}. |
+| {{disabled}} | {{bool}} | {{false}} | Passed straight through to {{CatalogCard.disabled}}; a disabled item also cannot start a drag (see Acceptance Criteria). |
+
+
+h2. Component Anatomy & Flutter Mapping
+
+|| Element || Flutter Widget || Documentation ||
+| Root list container | {{Column}} ({{MainAxisSize.min}}, {{CrossAxisAlignment.start}}) | n/a |
+| Catalog card row | {{CatalogCard}} (see that component's own definition for its full anatomy/states) | [CatalogCard\|../catalog_card/catalog_card.txt] |
+| Inter-card / pre-button gap | {{SizedBox(height: spacing)}} | n/a |
+| "Add scan" button | {{DSButton.secondary}} ({{icon: DSIcons.add}}, {{buttonText: 'Add scan'}}, {{stretch: true}}) | [Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button] |
+| Drag long-press detector | {{GestureDetector}} ({{onLongPressStart}}/{{onLongPressMoveUpdate}}/{{onLongPressEnd}}/{{onLongPressCancel}}), one per card, keyed via {{_cardKeys[i]}} for position lookups | n/a |
+| Floating dragged copy | private {{_DraggableCatalogCard}} — {{DecoratedBox}} ({{surface.standard}}, {{border.radius.standard}}, {{shadows.elevation3}}) + {{Padding(spacing.layout.s)}} + {{Row}} with a 64×64 {{Container}} (color {{background.standard}}, {{BlendMode.multiply}}) holding a {{DSIcon.medium(iconRef: DSIcons.archUpper)}}, plus a name/subtext {{Text}} column | n/a |
+| Drag overlay host | {{OverlayEntry}} + {{ValueListenableBuilder<Offset>}} inserted into {{Overlay.of(context)}}; position driven by a {{ValueNotifier<Offset>}} ({{_dragPosition}}) | n/a |
+
+
+h2. Acceptance Criteria
+
+ - *Functional:*
+ -- Tapping a card toggles its selected state via {{onSelectedChanged}}; only one card is selected at a time (selection is owned by {{CatalogCard}}/{{_handleSelectionChanged}}, not enforced by a shared radio-group primitive).
+ -- Long-pressing a card starts a drag *only* when that card's item is not {{disabled}} and its index is not already in {{_loadingIndices}}; disabled or loading cards ignore {{onLongPressStart}} entirely ({{null}} handler).
+ -- During a drag, the floating copy always uses the compact icon layout ({{_DraggableCatalogCard}}) regardless of whether the dragged item has {{scanModel}} true/false or was in its expanded (selected) state.
+ -- The current drag target is recomputed on every {{onLongPressMoveUpdate}} by testing the pointer against each other card's on-screen rect, expanded by {{spacing / 2}} on top and bottom so the target updates exactly at the midpoint of the gap between two cards.
+ -- Releasing or cancelling the long-press removes the floating overlay; if a target index existed at release time, that index and the source index both become {{isLoading: true}} for {{2}} seconds (see Content Logic & Edge Cases — no actual list mutation happens here).
+ -- The "Add scan" button spans the full list width ({{stretch: true}}) and is disabled whenever {{onAddPressed}} is {{null}}.
+
+ - *States:*
+ -- Default: all cards render their own default {{CatalogCard}} state; no card is {{isDragSource}}/{{isDragTarget}}/{{isLoading}}.
+ -- Dragging: exactly one card is {{isDragSource}} (the one long-pressed) and at most one other card is {{isDragTarget}} (whichever the pointer currently hovers); all other cards are unaffected.
+ -- Post-drop loading: the two cards involved in a completed drag-drop (source + target) are both {{isLoading}} for a fixed {{Duration(seconds: 2)}}; every other card is unaffected and remains interactive.
+ -- Empty list ({{items}} is empty): only the "Add scan" button renders — no gap is added before it, since the pre-button {{SizedBox(height: spacing)}} is only inserted {{if (widget.items.isNotEmpty)}}.
+
+ - *A11y:*
+ -- Drag is triggered purely by pointer long-press ({{GestureDetector.onLongPressStart}}); there is no keyboard- or screen-reader-accessible equivalent for reordering. *Not confirmed with Design/QA whether an alternative reorder path is required for accessibility compliance.*
+ -- No {{Semantics}} wrapping is applied at the {{CatalogList}} level to announce drag state changes (e.g. "now dragging", "dropped on X") — *flagged, not yet confirmed with QA.*
+ -- Effective long-press target is the full card row (288×96 px collapsed), comfortably exceeding the 44×44 px platform minimum.
+
+ - *Visual Fidelity:*
+ -- *Root list container:*
+ --- Sizing: shrink-wraps to content; each card is a fixed 288 px wide.
+ --- Gap between cards, and between the last card and the button: {{spacing}} px, default {{12}} px ({{var(--spacing/component/s)}}).
+ -- *Floating dragged copy ({{_DraggableCatalogCard}}):*
+ --- Sizing: fixed 288×96 px.
+ --- Background: {{var(--surface/standard, #ffffff)}}.
+ --- Border-radius: {{var(--border/radius/standard, #12px)}} = 12 px.
+ --- Shadow: {{var(--shadows/elevation-3)}} — x 0 px, y 4 px, blur 20 px, spread 6 px, colour {{rgba(0,0,0,0.08)}}.
+ --- Padding: {{var(--spacing/layout/s)}} = 16 px (all sides).
+ --- Image wrapper: 64×64 px, background {{var(--background/standard, #f5f5f5)}} with {{BlendMode.multiply}}, containing a 24×24 px {{DSIcons.archUpper}} icon coloured {{var(--icon/subdued)}}.
+ --- Gap between image wrapper and text column: {{var(--spacing/component/s)}} = 12 px.
+ --- Name: {{textBase}} (16 px / 24 px lh / −0.4 ls), colour {{var(--text/standard, #242424)}}, single line, ellipsis overflow.
+ --- Subtext (when {{showSubtext}}): {{textSm}} (14 px / 20 px lh / −0.35 ls), colour {{var(--text/subdued, #575757)}}, single line, ellipsis overflow.
+ --- *Design decision — status icon suppressed on drag:* the Figma "Moving ..." node (4750:15752) itself shows a green {{Check-Circle-Filled}} status icon (colour {{var(--icon/success)}}) when {{status: true}}, but the user has explicitly decided the green status checkmark must never appear on any drag-related visual — neither the floating copy nor the source placeholder — overriding the raw Figma export. {{_DraggableCatalogCard}} therefore has no status-icon rendering path at all. Treat this standing rule as authoritative over the Figma node if the two ever conflict again.
+ -- *"Add scan" button:* see {{DSButton}} (secondary) Storybook documentation for full token mapping; not re-specified here.
+
+
+h2. Content Logic & Edge Cases
+
+- *No list mutation on drop:* completing a drag (source + target both resolved) only flips {{isLoading}} on those two indices for a fixed 2-second timer — {{CatalogList}} never reorders, swaps, or otherwise mutates {{widget.items}} itself. The actual data reorder is assumed to be the caller's responsibility (e.g. in response to {{isLoading}} clearing), but *no callback exists on this widget to signal "swap {{sourceIndex}} and {{targetIndex}} now" — this looks like a gap*: a caller has no hook to know which two indices were involved once the loading timer starts, since {{_loadingIndices}} is private state. *Confirm with Design/Engineering whether a {{onSwapRequested(int source, int target)}}-style callback is missing, or whether the visual-only loading affordance is intentional pending a separate data-layer trigger.*
+- *Fixed 2-second loading duration is not sourced from Figma:* the Figma drag-state frame only specifies static Loading/Placeholder/Release visual states, not a timing value — the {{Duration(seconds: 2)}} is a code-only choice. *Confirm with Design whether 2 s is the intended/approved duration.*
+- *Disabled and already-loading items are drag-inert:* {{onLongPressStart}} is set to {{null}} (not merely a no-op body) whenever {{widget.items[i].disabled}} or {{_loadingIndices.contains(i)}} is true, so the gesture recognizer itself never engages — no visual "attempted drag" feedback is shown for these cards.
+- *Rapid drag re-entry:* starting a new drag while a previous drag's 2-second loading timer is still pending is not explicitly guarded — {{_startDrag}} does not check {{_loadingIndices}} before beginning a new drag on a *different*, non-loading card. The loading timer itself is cancelled and restarted (via {{_loadingTimer?.cancel()}}) if a second drag-drop completes before the first timer fires, so only the most recent pair stays in {{_loadingIndices}} once the earlier timer would have fired — *not verified against a specific expected UX, flag for QA if concurrent drags across a large list are a real scenario.*
+- *Card count changes while dragging:* {{didUpdateWidget}} regenerates {{_cardKeys}} whenever {{items.length}} changes, but does not reconcile an in-progress {{_draggingIndex}}/{{_dragTargetIndex}}/overlay against a list that shrinks or reorders out from under it — *not exercised; a list mutation from an external source during an active drag is an edge case not covered by this implementation.*
+- *Same-day Figma drag-and-drop reconciliation (2026-09-15, not yet committed):* the following fixes to the closely-coupled {{CatalogCard}} drag states were made alongside this document and are reflected in the anatomy/behavior described above and in full detail in [CatalogCard's own definition|../catalog_card/catalog_card.txt], but are called out here since they directly affect what {{CatalogList}} orchestrates: the placeholder card's headline/subtext now always render disabled-styled text regardless of selection state; the placeholder no longer shows its "⋮ remove catalog" button or status checkmark; the drop-target dashed border now always uses {{var(--border/width/dropzone)}} (2 px) regardless of the target card's selected state; and the placeholder's dashed-border layout no longer changes shape depending on whether another card is currently a valid drop target (removed the {{dragHasTarget}} parameter entirely, per explicit user feedback that the placeholder should look identical regardless of hover state elsewhere in the list).
+
+
+h2. Responsiveness & Links
+
+- Each {{CatalogCard}} row is a fixed 288 px wide; {{CatalogList}} itself defines no responsive breakpoints and does not reflow — a narrower parent will simply clip or force horizontal scrolling depending on the caller's layout, which is outside this component's scope.
+- Figma: [Catalog List|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4739-14071]
+- Figma Behavior: [.Catalog card drag|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4750-15310]
+- Storybook: [Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button]
+
+
+h2. Approvals
+
+||Team involved||Responsible||Status||
+|Design|[~Thomas.Jakob@dentsplysirona.com] | |
+|Product Management|[] | |
+|Product Owner|[] | |
+| | | |

@@ -1,0 +1,130 @@
+h2. User Story
+
+{Draft: As a clinical user, I want a contextual workflow assistant panel to appear at key procedure steps, so that I can follow guided instructions and take actions without leaving the current workflow.}
+
+
+h2. Design Definition & Assets
+
+- Figma Link: [WorkflowAssistant|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4327-14315]
+- Design Definition (Jira): [S3806-5447|https://jira.dentsplysirona.com/browse/S3806-5447] — content and approval status *not verified in this session*: Jira API access was unavailable (no {{JIRA_TOKEN}} configured), so this document was generated from the Figma source of truth alone. *Re-run against the ticket once Jira access is available, and reconcile any discrepancy.*
+- Flutter Component: *TBD — not yet pushed to origin* ({{workflow_assistant.dart}} exists locally at {{lib/components/workflow_assistant/workflow_assistant.dart}} in [ds-thomasja/di-scan|https://github.com/ds-thomasja/di-scan] but has not been committed/pushed yet).
+- Interaction Model: The panel is a floating overlay (positioning is caller-owned, matching the [Toolbar] component's contract — [Toolbar]'s Assistant pill already wires {{DSIcons.activity}} to a tooltip literally named "Workflow Assistant", i.e. it is meant to open this exact panel). The user dismisses it via the top-right close Icon Button ({{onClose}}). The {{variant}} prop switches the indicator between an informational state (*standard* — tinted {{DSIcons.activity}}) and a completion state (*success* — green circle badge with a white check icon). Five content slots below the permanent indicator + title are each independently shown or hidden based on whether their corresponding prop is non-null/non-empty: {{description}}, {{media}}, {{bullets}}, the switch-with-label toggle ({{switchLabel}}), and the secondary action button ({{buttonLabel}}).
+
+
+h2. Component Props
+
+|| Prop || Type || Default || Description ||
+| {{variant}} | {{WorkflowAssistantVariant}} | {{WorkflowAssistantVariant.standard}} | Selects the indicator: tinted activity icon (*standard*) or green check badge (*success*). |
+| {{title}} | {{String}} | required | The card's title, styled {{heading2xl}}. Wraps across up to 3 lines, truncating with an ellipsis beyond that. |
+| {{description}} | {{String?}} | {{null}} | Optional body copy below the title. Hidden (with its preceding gap) when {{null}}. |
+| {{media}} | {{Widget?}} | {{null}} | Optional image/animation shown in a 240×150 px framed slot. Hidden (with its preceding gap) when {{null}}. |
+| {{bullets}} | {{List<String>}} | {{const []}} | Bullet items, each rendered with an {{icon/information}} dot. Hidden (with its preceding gap) when empty. |
+| {{switchLabel}} | {{String?}} | {{null}} | Label of the optional switch-with-label toggle row. The row is hidden (with its preceding gap) when {{null}}. |
+| {{switchValue}} | {{bool}} | {{false}} | Host-owned value of the toggle. |
+| {{onSwitchChanged}} | {{ValueChanged<bool>?}} | {{null}} | Called when the toggle is tapped, with the proposed new value. |
+| {{buttonLabel}} | {{String?}} | {{null}} | Label of the optional secondary action button. Hidden (with its preceding gap) when {{null}}. |
+| {{onButtonPressed}} | {{VoidCallback?}} | {{null}} | Called when the secondary action button is pressed. |
+| {{onClose}} | {{VoidCallback}} | required | Called when the top-right close button is pressed; the panel does not remove itself. |
+
+
+h2. Component Anatomy & Flutter Mapping
+
+|| Element || Flutter Widget || Documentation ||
+| Card container | {{Container}} (fixed width 288 px) with {{BoxDecoration(color: surface.standard, borderRadius: border.radius.standard, boxShadow: shadows.elevation3)}} | n/a |
+| Indicator — standard ({{variant = standard}}) | private {{_Indicator}} — 32×32 px {{SizedBox}} (wrapped in {{Align(alignment: centerLeft)}} to stay pinned to its natural size under the panel's stretched {{Column}} — see below) holding a {{DSIcon(iconRef: DSIcons.activity, iconSize: 32, color: icon.information)}} that fills the box edge to edge. *Correction from an earlier draft of this spec* ({{99 Specification OLD/Components/WorkflowAssistant/WorkflowAssistant.txt}}), which guessed an "Info-Circle" icon — the actual Figma asset and its component description ("Activity — Flash, Lightning", node 4853:16806) confirm {{DSIcons.activity}}, independently corroborated by [Toolbar]'s existing, already-shipped code, which wires that same icon to a tooltip literally named "Workflow Assistant". | [STORYBOOK LINK NEEDED — Icon component] |
+| Indicator — success ({{variant = success}}) | private {{_Indicator}} — 32×32 px {{DecoratedBox(color: icon.success, shape: circle)}} centering a {{DSIcon.medium(iconRef: DSIcons.check, color: icon.onInteractive)}} | [STORYBOOK LINK NEEDED — Icon component] |
+| Title | {{Text}}, {{maxLines: 3}}, {{overflow: ellipsis}}, style {{heading2xl}} | n/a |
+| Description | {{Text}} (multi-line), style {{textLg}}; shown when {{description != null}} | n/a |
+| Media / Image slot | private {{_MediaFrame}} — {{ClipRRect}} + {{AspectRatio(240/150)}} wrapping a {{DecoratedBox}} (background {{background.dimmer}}, border {{border.standard}}, radius {{border.radius.standard}}) around the caller-supplied {{media}} widget; shown when {{media != null}} | n/a |
+| Bullet list | private {{_BulletList}} — {{Column}} of {{Row}} children, each a 12×12 px {{Container}} dot ({{icon.information}}, circular) + {{Expanded(child: Text)}}, style {{textLg}}; shown when {{bullets.isNotEmpty}} | n/a |
+| Toggle (Switch with Label) | {{DSSwitch(label: switchLabel, value: switchValue, onChanged: onSwitchChanged)}}; shown when {{switchLabel != null}} | [Switch\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Switch] |
+| Button (secondary) | {{DSButton.secondary(buttonText: buttonLabel, onPressed: onButtonPressed, stretch: true)}}; shown when {{buttonLabel != null}} | [Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button] |
+| Close button | {{DSButton.windowControlClose(onPressed: onClose)}}, absolutely positioned {{top: 20, right: 21}} over the card | [Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button] |
+
+
+h2. Acceptance Criteria
+
+ - *Functional:*
+ -- Tapping the close button calls {{onClose}}; the panel does not remove itself from the tree — that is the caller's responsibility.
+ -- When {{variant = WorkflowAssistantVariant.standard}} (default), the tinted activity indicator is visible and the success badge is not rendered.
+ -- When {{variant = WorkflowAssistantVariant.success}}, the green check badge is visible and the activity indicator is not rendered.
+ -- When {{description = null}}, the description block and its preceding 8 px gap ({{spacing/layout/xs}}) are both absent.
+ -- When {{media = null}}, the media slot and its preceding 16 px gap ({{spacing/layout/s}}) are absent.
+ -- When {{bullets}} is empty, the bullet list and its preceding 16 px gap ({{spacing/layout/s}}) are absent.
+ -- When {{switchLabel = null}}, the toggle row and its preceding 24 px gap ({{spacing/layout/m}}) are absent.
+ -- When {{buttonLabel = null}}, the button and its preceding 24 px gap ({{spacing/layout/m}}) are absent.
+ -- Toggling the switch calls {{onSwitchChanged}} with the proposed value; {{switchValue}} is host-owned and never mutated internally.
+ -- Tapping the secondary button calls {{onButtonPressed}}.
+
+ - *States:*
+ -- Close button: no background fill at rest; DS tertiary hover/pressed states per {{DSButton.windowControlClose}}.
+ -- Secondary button: {{action-secondary/standard}} (white) background at rest; hover/pressed per {{DSButton.secondary}}.
+ -- Toggle: renders {{switchValue}}'s current value; no internal state of its own.
+ -- No disabled state is defined for this component in the source Figma; none is implemented.
+
+ - *A11y:*
+ -- Close button carries {{DSButton.windowControlClose}}'s own accessible semantics (no additional label applied by this component) — *confirm with QA whether this reads as "Close" without extra wiring*.
+ -- The activity/check indicator icons are purely decorative; {{DSIcon}} renders them with no separate interactive semantics.
+ -- Colour contrast for {{text/standard}} on {{surface/standard}} and for the white check icon on {{icon/success}} is asserted by the design to meet WCAG AA; not independently re-verified here.
+
+ - *Visual Fidelity:*
+ -- *Card container:*
+ --- Sizing: width 288 px (fixed); padding 24 px on all sides, hard-coded — *not* {{tokens.spacing.layout.l}}, since that token is responsive to the host app's window width (24 px under `DSFormFactor.small`, 48 px at any wider form factor) and would double the padding whenever this floating overlay is shown over a wide window. Confirmed against the raw Figma export: this padding is the one spacing value in the whole frame with no bound design-system variable (every other gap in the frame binds a real `var(--spacing/...)` token), i.e. the designer fixed it independent of the responsive scale.
+ --- Background: {{var(--surface/standard, #ffffff)}}.
+ --- Border-radius: {{var(--border/radius/standard, 12px)}}; no border.
+ --- Shadow: {{var(--shadows/elevation-3)}} — offset 0px/4px, blur 20px, spread 6px, colour {{rgba(0,0,0,0.08)}}.
+ -- *Indicator (standard):*
+ --- Sizing: 32×32 px container; icon rendered at the full 32×32 px (not {{icon/size/m}}'s 24px — the Figma "Icon" node fills its 32×32 box edge to edge with no inner margin), left-aligned within the card's content column (the indicator does not stretch to the card width, unlike the media/switch/button slots below it).
+ --- Icon colour: {{var(--icon/information, #24759e)}} — confirmed directly from the Figma asset's rendered colour (a teal/blue tint), not the flat {{icon/standard}} dark grey.
+ -- *Indicator (success):*
+ --- Sizing: 32×32 px circular badge, fill {{var(--icon/success, #2f8e5b)}}; icon 24×24 px, colour {{var(--icon/on-interactive, #ffffff)}} — the only "white icon on a colour" token bound in this exact Figma node's variable set, since no {{icon/on-success}} token exists.
+ -- *Title:*
+ --- Font: {{var(--text/font/heading2xl)}} Be Vietnam Pro SemiBold, {{var(--text/size/heading2xl, 24px)}} / {{var(--text/line-height/heading2xl, 32px)}} lh / {{var(--text/letter-spacing/heading2xl, -0.6px)}} ls, colour {{var(--text/standard, #242424)}}. Wraps across up to 3 lines; truncates with an ellipsis beyond that. *Deviation from the original Figma node (single-line ellipsis)* — updated per subsequent guidance to allow longer titles to wrap instead of truncating immediately.
+ -- *Description:*
+ --- Font: {{var(--text/font/textLg)}} Be Vietnam Pro Regular, {{var(--text/size/textLg, 18px)}} / {{var(--text/line-height/textLg, 28px)}} lh / {{var(--text/letter-spacing/textLg, -0.45px)}} ls, colour {{var(--text/standard, #242424)}}. Spacing above: {{var(--spacing/layout/xs, 8px)}}.
+ -- *Media slot:*
+ --- Sizing: 100% of content width (240 px at the default card width); aspect ratio 240:150 (1.6:1).
+ --- Background: {{var(--background/dimmer)}} — the design shows a flat {{#f6f6f6}} placeholder fill; [TOKEN NEEDED — confirm {{background/dimmer}} resolves to this exact hex, or whether a dedicated placeholder token exists].
+ --- Border: {{var(--border/width/standard, 1px)}} solid {{var(--border/standard, #d7d7d7)}}; radius {{var(--border/radius/standard, 12px)}}; overflow hidden.
+ --- Spacing above: {{var(--spacing/layout/s, 16px)}}.
+ -- *Bullet list:*
+ --- Row gap (dot ↔ text): {{var(--spacing/component/s, 12px)}}. Gap between rows: {{var(--spacing/component/xs, 8px)}}. Spacing above list: {{var(--spacing/layout/s, 16px)}}.
+ --- Dot: 12×12 px circle, fill {{var(--icon/information, #24759e)}}, top-aligned with the first line of text.
+ --- Text: {{var(--text/font/textLg)}} Be Vietnam Pro Regular, 18px/28px lh/-0.45px ls, colour {{var(--text/standard, #242424)}}.
+ -- *Toggle (Switch with Label):*
+ --- Spacing above: {{var(--spacing/layout/m, 24px)}}. Sizing/colours/label typography per the DS {{DSSwitch}} component itself — no local overrides.
+ -- *Button (secondary):*
+ --- Sizing: 100% of content width ({{stretch: true}}). Spacing above: {{var(--spacing/layout/m, 24px)}}.
+ --- Background {{var(--action-secondary/standard, #ffffff)}}; border {{var(--border/width/standard, 1px)}} solid {{var(--border/subdued, #ebebeb)}}; radius {{var(--border/radius/standard, 12px)}}.
+ --- Shadow: {{var(--shadows/elevation-1)}} — layer A: 0px/1px/1px/0px {{rgba(0,0,0,0.02)}}; layer B: 0px/2px/8px/0px {{rgba(0,0,0,0.04)}}.
+ --- Label: {{var(--text/font/textAction)}} Be Vietnam Pro SemiBold, 14px/24px lh/-0.35px ls, colour {{var(--text/standard, #242424)}}, centred. Sizing/colours per {{DSButton.secondary}} itself otherwise.
+ -- *Close button:*
+ --- Position: absolute, {{top: 20px, right: 21px}} over the card.
+ --- Sizing/padding/radius/icon colour per {{DSButton.windowControlClose}} itself — no local overrides.
+
+
+h2. Content Logic & Edge Cases
+
+- *Title overflow:* Wraps across up to 3 lines; truncates with an ellipsis beyond that.
+- *Description overflow:* Wraps naturally across multiple lines; no maximum line count is enforced — *confirm with Design if a cap is required*.
+- *Bullet count:* The Figma design shows exactly 4 bullets, but {{bullets}} accepts any length for flexibility — *confirm with Design/Product whether a different count is a valid real-world scenario, and how list height should respond if so*.
+- *Empty media slot:* When {{media = null}}, no placeholder frame is rendered at all (the whole slot and its gap collapse) — this differs from the Figma mock, which always shows a placeholder frame even with no real image loaded yet. If a caller needs a "media is loading" state distinct from "no media slot at all", they should pass a placeholder widget into {{media}} themselves rather than relying on this component to render one.
+- *All optional sections hidden:* The card renders with only the indicator + title, collapsing to its minimum height — *verify minimum height with Design if this is an expected real-world configuration*.
+- *Long toggle/button label:* {{DSSwitch}}'s and {{DSButton}}'s own text-overflow handling applies; not overridden locally.
+
+
+h2. Responsiveness & Links
+
+- The card has a fixed width of 288 px (content area 240 px) and defines no responsive breakpoints. It is designed to be rendered as a floating overlay, not in a fluid grid — positioning is entirely caller-owned (matching [Toolbar]'s contract).
+- Figma: [WorkflowAssistant|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4327-14315]
+- Storybook: [Switch\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Switch]
+- Storybook: [Button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button]
+
+
+h2. Approvals
+
+||Team involved||Responsible||Status||
+|Design|[~Thomas.Jakob@dentsplysirona.com] | |
+|Product Management|[] | |
+|Product Owner|[] | |
+| | | |

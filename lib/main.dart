@@ -6,6 +6,7 @@ import 'components/catalog_card/catalog_card.dart';
 import 'components/catalog_list/catalog_list.dart';
 import 'components/header_menus/header_menus.dart';
 import 'components/toolbar/toolbar.dart';
+import 'components/workflow_assistant/workflow_assistant.dart';
 
 void main() {
   runApp(const ComponentPreviewApp());
@@ -67,6 +68,7 @@ final List<_ComponentEntry> _componentEntries = [
   const _ComponentEntry('CatalogList', _CatalogListPlayground()),
   const _ComponentEntry('HeaderMenus', _HeaderMenusPlayground()),
   const _ComponentEntry('Toolbar', _ToolbarPlayground()),
+  const _ComponentEntry('WorkflowAssistant', _WorkflowAssistantPlayground()),
 ]..sort((a, b) => a.name.compareTo(b.name));
 
 /// Shows one component at a time, selected from a sidebar listing every
@@ -417,6 +419,7 @@ class _CatalogCardPlaygroundState extends State<_CatalogCardPlayground> {
   bool _showSubtext = true;
   _CatalogCardDemoState _state = _CatalogCardDemoState.default_;
   bool _showStatus = false;
+  bool _scanModel = false;
 
   @override
   void dispose() {
@@ -437,6 +440,18 @@ class _CatalogCardPlaygroundState extends State<_CatalogCardPlayground> {
       disabled: _state == _CatalogCardDemoState.disabled,
       isLoading: _state == _CatalogCardDemoState.loading,
       showStatus: _showStatus,
+      scanModel: _scanModel,
+      scanModelImage: _scanModel
+          ? ColoredBox(
+              color: tokens.background.dimmer,
+              child: Center(
+                child: Text(
+                  'Scan',
+                  style: tokens.text.textSm.copyWith(color: tokens.text.subdued),
+                ),
+              ),
+            )
+          : null,
       onRemovePressed: () {},
     );
 
@@ -493,6 +508,11 @@ class _CatalogCardPlaygroundState extends State<_CatalogCardPlayground> {
               value: _showStatus,
               onChanged: (value) => setState(() => _showStatus = value),
             ),
+            DSSwitch(
+              label: 'Scan model',
+              value: _scanModel,
+              onChanged: (value) => setState(() => _scanModel = value),
+            ),
           ],
         ),
       ],
@@ -511,21 +531,42 @@ class _CatalogListPlayground extends StatefulWidget {
 }
 
 class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
-  static const _items = [
-    CatalogListItem(name: 'Upper jaw', subtext: 'Scanned 12 min ago'),
-    CatalogListItem(
-      name: 'Lower jaw',
-      subtext: 'Scanned 4 min ago',
-      showStatus: true,
-    ),
-    CatalogListItem(name: 'Bite', subtext: 'Not scanned'),
+  static const _names = ['Upper jaw', 'Lower jaw', 'Bite'];
+  static const _subtexts = [
+    'Scanned 12 min ago',
+    'Scanned 4 min ago',
+    'Not scanned',
   ];
 
   int? _selectedIndex = 1;
+  bool _scanModel = false;
+
+  List<CatalogListItem> _buildItems(DSTokensData tokens) => [
+        for (var i = 0; i < _names.length; i++)
+          CatalogListItem(
+            name: _names[i],
+            subtext: _subtexts[i],
+            showStatus: i == 1,
+            scanModel: _scanModel,
+            scanModelImage: _scanModel
+                ? ColoredBox(
+                    color: tokens.background.dimmer,
+                    child: Center(
+                      child: Text(
+                        'Scan',
+                        style: tokens.text.textSm
+                            .copyWith(color: tokens.text.subdued),
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
+    final items = _buildItems(tokens);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -539,7 +580,7 @@ class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
                   'Choose the selected card on the right.',
               child: CatalogList(
                 selectedIndex: _selectedIndex,
-                items: _items,
+                items: items,
                 onSelectionChanged: (index) =>
                     setState(() => _selectedIndex = index),
               ),
@@ -554,12 +595,17 @@ class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
               child: DSDropdown<int?>(
                 items: [
                   DSDropdownItem(value: null, title: 'None'),
-                  for (var i = 0; i < _items.length; i++)
-                    DSDropdownItem(value: i, title: _items[i].name),
+                  for (var i = 0; i < items.length; i++)
+                    DSDropdownItem(value: i, title: items[i].name),
                 ],
                 value: _selectedIndex,
                 onChanged: (value) => setState(() => _selectedIndex = value),
               ),
+            ),
+            DSSwitch(
+              label: 'Scan model',
+              value: _scanModel,
+              onChanged: (value) => setState(() => _scanModel = value),
             ),
           ],
         ),
@@ -734,6 +780,170 @@ class _ToolbarPlaygroundState extends State<_ToolbarPlayground> {
               value: _videoViewActive,
               onChanged: (value) => setState(() => _videoViewActive = value),
             ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Live, controls-driven preview of [WorkflowAssistant]: text inputs for
+/// title/description/bullets, switches for the variant and the optional
+/// media/bullets/toggle/button slots, driving one instance of the card.
+class _WorkflowAssistantPlayground extends StatefulWidget {
+  const _WorkflowAssistantPlayground();
+
+  @override
+  State<_WorkflowAssistantPlayground> createState() =>
+      _WorkflowAssistantPlaygroundState();
+}
+
+class _WorkflowAssistantPlaygroundState
+    extends State<_WorkflowAssistantPlayground> {
+  late final _titleController = TextEditingController(text: 'Title');
+  late final _descriptionController =
+      TextEditingController(text: 'Description\nDescription');
+  late final _switchLabelController = TextEditingController(text: 'Label');
+  late final _buttonLabelController = TextEditingController(text: 'Label');
+  WorkflowAssistantVariant _variant = WorkflowAssistantVariant.standard;
+  bool _showDescription = true;
+  bool _showMedia = true;
+  bool _showBullets = true;
+  bool _showToggle = true;
+  bool _showButton = true;
+  bool _switchValue = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _switchLabelController.dispose();
+    _buttonLabelController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    final preview = WorkflowAssistant(
+      variant: _variant,
+      title: _titleController.text,
+      description: _showDescription ? _descriptionController.text : null,
+      media: _showMedia
+          ? ColoredBox(
+              color: tokens.background.dimmer,
+              child: Center(
+                child: Text(
+                  'Media',
+                  style: tokens.text.textSm.copyWith(color: tokens.text.subdued),
+                ),
+              ),
+            )
+          : null,
+      bullets: _showBullets
+          ? const ['Bullet', 'Bullet', 'Bullet', 'Bullet']
+          : const [],
+      switchLabel: _showToggle ? _switchLabelController.text : null,
+      switchValue: _switchValue,
+      onSwitchChanged: (value) => setState(() => _switchValue = value),
+      buttonLabel: _showButton ? _buttonLabelController.text : null,
+      onButtonPressed: () {},
+      onClose: () {},
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'WorkflowAssistant',
+              caption: 'A floating panel opened from the Toolbar\'s '
+                  'Assistant pill. Toggle its content slots on the right; '
+                  'the close/button callbacks are no-ops here.',
+              child: Center(child: preview),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            _ControlField(
+              label: 'Type',
+              child: DSDropdown<WorkflowAssistantVariant>(
+                items: [
+                  for (final variant in WorkflowAssistantVariant.values)
+                    DSDropdownItem(
+                      value: variant,
+                      title: variant == WorkflowAssistantVariant.standard
+                          ? 'Default'
+                          : 'Success',
+                    ),
+                ],
+                value: _variant,
+                onChanged: (value) =>
+                    setState(() => _variant = value ?? _variant),
+              ),
+            ),
+            _ControlField(
+              label: 'Title',
+              child: DSInput(
+                controller: _titleController,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            DSSwitch(
+              label: 'Description',
+              value: _showDescription,
+              onChanged: (value) => setState(() => _showDescription = value),
+            ),
+            if (_showDescription)
+              _ControlField(
+                label: 'Description text',
+                child: DSInput(
+                  controller: _descriptionController,
+                  maxLines: 2,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            DSSwitch(
+              label: 'Media',
+              value: _showMedia,
+              onChanged: (value) => setState(() => _showMedia = value),
+            ),
+            DSSwitch(
+              label: 'Bullet list',
+              value: _showBullets,
+              onChanged: (value) => setState(() => _showBullets = value),
+            ),
+            DSSwitch(
+              label: 'Toggle',
+              value: _showToggle,
+              onChanged: (value) => setState(() => _showToggle = value),
+            ),
+            if (_showToggle)
+              _ControlField(
+                label: 'Toggle label',
+                child: DSInput(
+                  controller: _switchLabelController,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            DSSwitch(
+              label: 'Button',
+              value: _showButton,
+              onChanged: (value) => setState(() => _showButton = value),
+            ),
+            if (_showButton)
+              _ControlField(
+                label: 'Button label',
+                child: DSInput(
+                  controller: _buttonLabelController,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
           ],
         ),
       ],

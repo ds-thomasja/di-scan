@@ -55,7 +55,8 @@ class CatalogCard extends StatefulWidget {
   /// Shows the check-circle-filled status icon.
   final bool showStatus;
 
-  /// The card the user is currently dragging over. Shows hovered background,
+  /// The card the user is currently dragging over. Shows a dropzone
+  /// background with a dashed interactive border, an interactive-colored
   /// repeat icon, fixed "Switch" label, and hides subtext.
   final bool isDragTarget;
 
@@ -148,10 +149,13 @@ class _CatalogCardState extends State<CatalogCard> {
                 ? Curves.easeInCubic
                 : Curves.easeOut,
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 _buildCard(tokens),
-                if (_selected && !widget.isDragSource) _buildSelectionOverlay(tokens),
+                if (_selected && !widget.isDragSource && !widget.isDragTarget)
+                  _buildSelectionOverlay(tokens),
                 if (widget.isDragSource) _buildDragSourceOverlay(tokens),
+                if (widget.isDragTarget) _buildDragTargetOverlay(tokens),
               ],
             ),
           ),
@@ -164,7 +168,7 @@ class _CatalogCardState extends State<CatalogCard> {
     if (widget.disabled) return tokens.surface.standard;
     if (widget.isLoading) return tokens.surface.standard;
     if (widget.isDragSource) return tokens.surface.subdued;
-    if (widget.isDragTarget) return tokens.surface.hovered;
+    if (widget.isDragTarget) return tokens.surface.dropzone;
     if (_isPressed && !_isButtonHovered) return tokens.surface.pressed;
     if (_isFocused) return tokens.surface.standard;
     if (_isHovered && !_isButtonHovered) return tokens.surface.hovered;
@@ -173,6 +177,7 @@ class _CatalogCardState extends State<CatalogCard> {
 
   BoxBorder _border(DSTokensData tokens) {
     if (widget.isDragSource) return Border.all(color: Colors.transparent);
+    if (widget.isDragTarget) return Border.all(color: Colors.transparent);
     if (_isFocused) {
       return Border.all(color: tokens.border.focused, width: tokens.border.width.focus);
     }
@@ -235,6 +240,20 @@ class _CatalogCardState extends State<CatalogCard> {
     );
   }
 
+  Widget _buildDragTargetOverlay(DSTokensData tokens) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: CustomPaint(
+          painter: _DashedRoundedBorderPainter(
+            color: tokens.border.interactive,
+            radius: tokens.border.radius.standard,
+            strokeWidth: tokens.border.width.dropzone,
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── Compact layout (not selected) ───────────────────────────────────────────
 
   Widget _buildCompactContent(DSTokensData tokens) {
@@ -245,7 +264,7 @@ class _CatalogCardState extends State<CatalogCard> {
           _compactImage(tokens),
           SizedBox(width: tokens.spacing.component.s),
           Expanded(child: _textColumn(tokens)),
-          if (widget.showStatus) ...[
+          if (widget.showStatus && !widget.isDragTarget && !widget.isDragSource) ...[
             SizedBox(width: tokens.spacing.component.xxs),
             _statusIcon(tokens),
           ],
@@ -270,7 +289,7 @@ class _CatalogCardState extends State<CatalogCard> {
         child: Center(
           child: DSIcon.medium(
             iconRef: DSIcons.repeat,
-            color: tokens.icon.subdued,
+            color: tokens.icon.interactive,
           ),
         ),
       );
@@ -330,11 +349,11 @@ class _CatalogCardState extends State<CatalogCard> {
           child: Row(
             children: [
               Expanded(child: _textColumn(tokens)),
-              if (widget.showStatus) ...[
+              if (widget.showStatus && !widget.isDragTarget && !widget.isDragSource) ...[
                 SizedBox(width: tokens.spacing.component.xxs),
                 _statusIcon(tokens),
               ],
-              if (widget.onRemovePressed != null)
+              if (widget.onRemovePressed != null && !widget.isDragSource)
                 MouseRegion(
                   onEnter: (_) => setState(() => _isButtonHovered = true),
                   onExit: (_) => setState(() => _isButtonHovered = false),
@@ -381,7 +400,7 @@ class _CatalogCardState extends State<CatalogCard> {
           child: Center(
             child: DSIcon.large(
               iconRef: DSIcons.repeat,
-              color: tokens.icon.subdued,
+              color: tokens.icon.interactive,
             ),
           ),
         ),
@@ -397,7 +416,7 @@ class _CatalogCardState extends State<CatalogCard> {
         child: AspectRatio(
           aspectRatio: 288 / 162,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(tokens.border.radius.standard),
+            borderRadius: topRadius,
             child: _MultiplyLayer(
               child: widget.scanModelImage!,
             ),
@@ -434,11 +453,11 @@ class _CatalogCardState extends State<CatalogCard> {
 
     if (widget.isDragTarget) {
       displayName = 'Switch';
-      nameColor = _selected ? tokens.text.disabled : tokens.text.standard;
+      nameColor = tokens.text.interactive;
       subtextColor = tokens.text.subdued; // unused — subtext hidden for target
     } else if (widget.isDragSource) {
       displayName = widget.name;
-      nameColor = _selected ? tokens.text.standard : tokens.text.disabled;
+      nameColor = tokens.text.disabled;
       subtextColor = tokens.text.disabled;
     } else {
       displayName = widget.name;
@@ -507,12 +526,13 @@ class _DashedRoundedBorderPainter extends CustomPainter {
   const _DashedRoundedBorderPainter({
     required this.color,
     required this.radius,
+    this.strokeWidth = 2.0,
   });
 
   final Color color;
   final double radius;
+  final double strokeWidth;
 
-  static const double _strokeWidth = 2.0;
   static const double _dashWidth = 6.0;
   static const double _dashGap = 4.0;
 
@@ -520,12 +540,12 @@ class _DashedRoundedBorderPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = _strokeWidth
+      ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke;
 
-    final inset = _strokeWidth / 2;
+    final inset = strokeWidth / 2;
     final rrect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(inset, inset, size.width - _strokeWidth, size.height - _strokeWidth),
+      Rect.fromLTWH(inset, inset, size.width - strokeWidth, size.height - strokeWidth),
       Radius.circular(radius),
     );
 
@@ -546,7 +566,7 @@ class _DashedRoundedBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DashedRoundedBorderPainter old) =>
-      old.color != color || old.radius != radius;
+      old.color != color || old.radius != radius || old.strokeWidth != strokeWidth;
 }
 
 // Paints its child into an isolated layer with BlendMode.multiply so that

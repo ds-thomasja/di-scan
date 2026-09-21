@@ -38,9 +38,10 @@ class CatalogList extends StatefulWidget {
     super.key,
     required this.items,
     this.selectedIndex,
-    this.spacing = 8.0,
+    this.spacing = 12.0,
     this.onSelectionChanged,
     this.onRemovePressed,
+    this.onAddPressed,
   });
 
   final List<CatalogListItem> items;
@@ -57,6 +58,10 @@ class CatalogList extends StatefulWidget {
   /// Called when a card's remove action is triggered, with the item's index.
   final ValueChanged<int>? onRemovePressed;
 
+  /// Called when the trailing "Add scan" button is pressed. The button is
+  /// disabled when null.
+  final VoidCallback? onAddPressed;
+
   @override
   State<CatalogList> createState() => _CatalogListState();
 }
@@ -69,7 +74,6 @@ class _CatalogListState extends State<CatalogList> {
   Timer? _loadingTimer;
   OverlayEntry? _dragOverlay;
   final _dragPosition = ValueNotifier<Offset>(Offset.zero);
-  final _dragHasTarget = ValueNotifier<bool>(false);
 
   // One key per list item to resolve each card's screen position.
   late List<GlobalKey> _cardKeys;
@@ -100,7 +104,6 @@ class _CatalogListState extends State<CatalogList> {
     _dragOverlay?.remove();
     _dragOverlay = null;
     _dragPosition.dispose();
-    _dragHasTarget.dispose();
     super.dispose();
   }
 
@@ -123,19 +126,15 @@ class _CatalogListState extends State<CatalogList> {
     _dragOverlay = OverlayEntry(
       builder: (context) => ValueListenableBuilder<Offset>(
         valueListenable: _dragPosition,
-        builder: (context, position, _) => ValueListenableBuilder<bool>(
-          valueListenable: _dragHasTarget,
-          builder: (context, hasTarget, _) => Positioned(
-            left: position.dx,
-            top: position.dy,
-            child: Material(
-              color: Colors.transparent,
-              child: _DraggableCatalogCard(
-                name: item.name,
-                subtext: item.subtext,
-                showSubtext: item.showSubtext,
-                isOverTarget: hasTarget,
-              ),
+        builder: (context, position, _) => Positioned(
+          left: position.dx,
+          top: position.dy,
+          child: Material(
+            color: Colors.transparent,
+            child: _DraggableCatalogCard(
+              name: item.name,
+              subtext: item.subtext,
+              showSubtext: item.showSubtext,
             ),
           ),
         ),
@@ -167,14 +166,12 @@ class _CatalogListState extends State<CatalogList> {
     }
     if (newTarget != _dragTargetIndex) {
       setState(() => _dragTargetIndex = newTarget);
-      _dragHasTarget.value = newTarget != null;
     }
   }
 
   void _endDrag() {
     _dragOverlay?.remove();
     _dragOverlay = null;
-    _dragHasTarget.value = false;
 
     final sourceIndex = _draggingIndex;
     final targetIndex = _dragTargetIndex;
@@ -233,6 +230,13 @@ class _CatalogListState extends State<CatalogList> {
             ),
           ),
         ],
+        if (widget.items.isNotEmpty) SizedBox(height: widget.spacing),
+        DSButton.secondary(
+          icon: DSIcons.add,
+          buttonText: 'Add scan',
+          stretch: true,
+          onPressed: widget.onAddPressed,
+        ),
       ],
     );
   }
@@ -246,13 +250,11 @@ class _DraggableCatalogCard extends StatelessWidget {
     required this.name,
     required this.subtext,
     required this.showSubtext,
-    required this.isOverTarget,
   });
 
   final String name;
   final String subtext;
   final bool showSubtext;
-  final bool isOverTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -264,13 +266,7 @@ class _DraggableCatalogCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: tokens.surface.standard,
           borderRadius: BorderRadius.circular(tokens.border.radius.standard),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
+          boxShadow: tokens.shadows.elevation3,
         ),
         child: Padding(
           padding: EdgeInsets.all(tokens.spacing.layout.s),
@@ -281,11 +277,12 @@ class _DraggableCatalogCard extends StatelessWidget {
                 height: 64,
                 decoration: BoxDecoration(
                   color: tokens.background.standard,
+                  backgroundBlendMode: BlendMode.multiply,
                   borderRadius: BorderRadius.circular(tokens.border.radius.standard),
                 ),
                 child: Center(
                   child: DSIcon.medium(
-                    iconRef: isOverTarget ? DSIcons.repeat : DSIcons.archUpper,
+                    iconRef: DSIcons.archUpper,
                     color: tokens.icon.subdued,
                   ),
                 ),

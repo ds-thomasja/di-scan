@@ -9,6 +9,7 @@ import 'package:di_scan/components/catalog_card/catalog_card.dart';
 import 'package:di_scan/components/catalog_list/catalog_list.dart';
 import 'package:di_scan/components/header_menus/header_menus.dart';
 import 'package:di_scan/components/toolbar/toolbar.dart';
+import 'package:di_scan/components/workflow_assistant/workflow_assistant.dart';
 import 'package:di_scan/main.dart';
 
 void main() {
@@ -30,6 +31,7 @@ void main() {
     expect(find.text('CatalogList'), findsOneWidget);
     expect(find.text('HeaderMenus'), findsOneWidget);
     expect(find.text('Toolbar'), findsOneWidget);
+    expect(find.text('WorkflowAssistant'), findsOneWidget);
 
     // ApplicationLoading is first alphabetically, so it's selected by default:
     // its label appears both in the sidebar and as the content heading.
@@ -267,6 +269,100 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     final finalHeight = tester.getSize(sublineFinder).height;
     expect(finalHeight, greaterThan(initialHeight));
+  });
+
+  testWidgets(
+      'WorkflowAssistant playground switches variant and toggles its '
+      'optional content slots', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('WorkflowAssistant'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('WorkflowAssistant'), findsNWidgets(2));
+    expect(find.byType(WorkflowAssistant), findsOneWidget);
+
+    // Everything below is scoped to the preview instance itself, so the
+    // gallery's own chrome (sidebar, section heading, control inputs and
+    // switches) can't be counted by accident — several of them happen to
+    // show the exact same initial text as the preview (e.g. both the
+    // Description input and the Button-label input default to text also
+    // used inside the card).
+    Finder inAssistant(Finder matching) => find.descendant(
+        of: find.byType(WorkflowAssistant), matching: matching);
+
+    // All optional slots are on by default: description, media, the 4
+    // bullets, the toggle and the button.
+    expect(inAssistant(find.text('Description\nDescription')), findsOneWidget);
+    expect(inAssistant(find.text('Media')), findsOneWidget);
+    expect(inAssistant(find.text('Bullet')), findsNWidgets(4));
+    expect(inAssistant(find.byType(DSSwitch)), findsOneWidget);
+    expect(inAssistant(find.byType(DSButton)), findsNWidgets(2)); // + close
+
+    // Switching to the Success variant swaps the indicator's icon color.
+    // The Type dropdown's button shows the currently-selected item's own
+    // title ('Default'); tapping it opens the popup listing both options.
+    await tester.tap(find.text('Default'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Success'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // The close button also renders its own DSIcon internally, so match on
+    // iconRef rather than assuming there's only one DSIcon descendant.
+    expect(
+      inAssistant(find.byWidgetPredicate(
+          (widget) => widget is DSIcon && widget.iconRef == DSIcons.check)),
+      findsOneWidget,
+    );
+    expect(
+      inAssistant(find.byWidgetPredicate((widget) =>
+          widget is DSIcon && widget.iconRef == DSIcons.activity)),
+      findsNothing,
+    );
+
+    // Turning each optional-slot switch off removes it from the preview.
+    await tester.tap(find.text('Description'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(inAssistant(find.text('Description\nDescription')), findsNothing);
+
+    // 'Media' matches both the preview's own placeholder text and the
+    // Media switch's label; the switch (added to the tree after the
+    // preview) is the last match.
+    await tester.tap(find.text('Media').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(inAssistant(find.text('Media')), findsNothing);
+
+    await tester.tap(find.text('Bullet list'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(inAssistant(find.text('Bullet')), findsNothing);
+
+    await tester.tap(find.text('Toggle'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(inAssistant(find.byType(DSSwitch)), findsNothing);
+
+    await tester.tap(find.text('Button'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      find.descendant(
+        of: find.byType(WorkflowAssistant),
+        matching: find.byType(DSButton),
+      ),
+      findsOneWidget, // only the always-visible close button remains
+    );
   });
 
   testWidgets('Component gallery renders with the dark DS theme',
