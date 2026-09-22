@@ -39,17 +39,19 @@ class HeaderMenuHelp extends StatelessWidget {
           DSAction(
             title: 'About DI Scan',
             icon: DSIcons.infoCircle,
-            onTrigger: onAboutDiScan,
+            // Falls back to a no-op so the row stays enabled (hover/pressed
+            // states testable) even when the host hasn't wired an action.
+            onTrigger: onAboutDiScan ?? () {},
           ),
           DSAction(
             title: 'Give feedback',
             icon: DSIcons.comment,
-            onTrigger: onGiveFeedback,
+            onTrigger: onGiveFeedback ?? () {},
           ),
           DSAction(
             title: 'Onboarding',
             icon: DSIcons.annotations,
-            onTrigger: onOnboarding,
+            onTrigger: onOnboarding ?? () {},
           ),
         ],
       ],

@@ -14,9 +14,9 @@ h2. Design Definition & Assets
 h2. Component Props
 
 || Prop || Type || Default || Description ||
-| {{onCreateDesign}} | {{VoidCallback?}} | {{null}} | Called when "Create design" is selected. If {{null}}, that option renders disabled (per {{DSAction}}'s contract: an action with no {{onTrigger}} is not interactive). |
-| {{onOpenInCanvas}} | {{VoidCallback?}} | {{null}} | Called when "Open in Canvas" is selected. Disabled when {{null}}, same rule as above. |
-| {{onFinishAndClose}} | {{VoidCallback?}} | {{null}} | Called when "Finish and close" is selected. Disabled when {{null}}, same rule as above. |
+| {{onCreateDesign}} | {{VoidCallback?}} | {{null}} | Called when "Create design" is selected. If {{null}}, the component substitutes a no-op callback internally, so the option still renders *enabled* (hover/pressed states remain testable) — selecting it just closes the popup and does nothing further. |
+| {{onOpenInCanvas}} | {{VoidCallback?}} | {{null}} | Called when "Open in Canvas" is selected. Same no-op fallback as above when {{null}}. |
+| {{onFinishAndClose}} | {{VoidCallback?}} | {{null}} | Called when "Finish and close" is selected. Same no-op fallback as above when {{null}}. |
 
 
 h2. Component Anatomy & Flutter Mapping
@@ -34,7 +34,7 @@ h2. Acceptance Criteria
  - *Functional:*
  -- Tapping the trigger button opens the popup menu; tapping it again, tapping outside the popup, or selecting any option closes it.
  -- Selecting "Create design" closes the popup and then invokes {{onCreateDesign}}; the same close-then-invoke order applies to "Open in Canvas" ({{onOpenInCanvas}}) and "Finish and close" ({{onFinishAndClose}}) — confirmed from {{DSActionsButton}}'s own {{onChanged}} handler ({{closePopup(); value.onTrigger?.call();}}).
- -- Any option whose callback is {{null}} (the default for all three) renders disabled and does not respond to taps, per {{DSAction.toOption()}} setting {{enabled: onTrigger != null}}.
+ -- Any option whose callback is {{null}} (the default for all three) still renders *enabled*: {{header_menu_more.dart}} passes {{onCreateDesign ?? () {}}} (and the equivalent for the other two) as {{onTrigger}}, so {{DSAction.toOption()}}'s {{enabled: onTrigger != null}} rule is always satisfied and the row responds to hover/pressed/tap — tapping it with no host callback wired just closes the popup and performs no action.
  -- The three options always render in a single, undivided section, in the fixed order Create design → Open in Canvas → Finish and close.
  -- The component performs no navigation, snackbar, or other side effect itself — all three actions are purely host-owned callbacks (*confirm with Product* whether "Create design" / "Open in Canvas" / "Finish and close" are expected to navigate, and to where; not specified by the Figma node itself).
 
@@ -46,7 +46,7 @@ h2. Acceptance Criteria
  -- Trigger button, hovered: {{var(--action-tertiary/hovered)}} background (exact token confirmed via source; hex not present in the Figma node's exported variables — *confirm exact color with Design if needed*).
  -- Trigger button, pressed / popup open: {{var(--action-tertiary/pressed, rgba(0,0,0,0.16))}} background — confirmed against both the Figma node's exported variables and {{DSCrudeButtonThemeData.tertiary}}'s source.
  -- Option row, default: {{var(--surface/standard, #ffffff)}} background (per {{DSOptionThemeData}}; hover/pressed row backgrounds are DS-internal and not independently re-verified here).
- -- Disabled option row (callback is {{null}}): DS-internal disabled treatment (dimmed text/icon); not pixel-verified against Figma since the exported node only shows the enabled/default state.
+ -- Option row, with no host callback wired: renders identically to the enabled/default state above — this component never lets a row reach DS's disabled treatment, since the no-op fallback always keeps {{onTrigger}} non-null.
 
  - *A11y:*
  -- Keyboard navigation between options (arrow keys) is handled internally by {{DSFocusable}}/{{DSOptionWrapper}}; not independently re-verified here.
@@ -74,9 +74,9 @@ h2. Acceptance Criteria
 
 h2. Content Logic & Edge Cases
 
-- *Disabled options (all three callbacks {{null}}, the widget's default):* the popup still opens and shows all three rows, all disabled — the component never hides an option just because its callback is unset. *Confirm with Design/Product whether this is the intended empty-state behavior*, since the Figma node itself only documents the fully-wired, all-enabled state.
+- *No action wired (all three callbacks {{null}}, the widget's default):* the popup still opens and shows all three rows, all *enabled* — deliberately so, so hover/pressed states stay testable even with nothing wired up. Selecting a row with no host callback simply closes the popup; no navigation, snackbar, or other side effect occurs, since there is nothing to run in the background. The component never hides or disables an option just because its callback is unset. *Confirm with Design/Product whether this is the intended empty-state behavior*, since the Figma node itself only documents the fully-wired state.
 - *Label truncation:* none of the three labels are expected to overflow at their fixed English copy; no ellipsis/wrap behavior is specified or was exercised in the Figma export.
-- *Popup width vs. viewport edge:* since the popup is intrinsically sized and anchored to the button (not stretched to a fixed width), a very narrow header could in theory clip it — not something the Figma export can confirm either way; flagging only for completeness.
+- *Popup width vs. viewport edge:* not a real risk — confirmed against {{DSActionsButton}}'s source (via {{DSModalPopupAnchor}} → {{DSPopupLayoutDelegate}}/{{calculatePopupRect}}), which clamps the popup's position against the full screen bounds (inset by {{screenPadding}}, default {{var(--spacing/layout/xs)}}), not just the local header width. Even with a very narrow header and the button near the edge, the popup slides horizontally as needed to stay fully on-screen instead of being clipped.
 
 
 h2. Responsiveness & Links

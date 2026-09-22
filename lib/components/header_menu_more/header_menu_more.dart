@@ -39,17 +39,19 @@ class HeaderMenuMore extends StatelessWidget {
           DSAction(
             title: 'Create design',
             icon: DSIcons.toothDesign,
-            onTrigger: onCreateDesign,
+            // Falls back to a no-op so the row stays enabled (hover/pressed
+            // states testable) even when the host hasn't wired an action.
+            onTrigger: onCreateDesign ?? () {},
           ),
           DSAction(
             title: 'Open in Canvas',
             icon: DSIcons.canvas,
-            onTrigger: onOpenInCanvas,
+            onTrigger: onOpenInCanvas ?? () {},
           ),
           DSAction(
             title: 'Finish and close',
             icon: DSIcons.close,
-            onTrigger: onFinishAndClose,
+            onTrigger: onFinishAndClose ?? () {},
           ),
         ],
       ],
