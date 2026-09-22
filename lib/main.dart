@@ -4,7 +4,9 @@ import 'package:lightning_core_ui/lightning_core_ui.dart';
 import 'components/application_loading/application_loading.dart';
 import 'components/catalog_card/catalog_card.dart';
 import 'components/catalog_list/catalog_list.dart';
-import 'components/header_menus/header_menus.dart';
+import 'components/header_menu_help/header_menu_help.dart';
+import 'components/header_menu_more/header_menu_more.dart';
+import 'components/header_menu_settings/header_menu_settings.dart';
 import 'components/toolbar/toolbar.dart';
 import 'components/workflow_assistant/workflow_assistant.dart';
 
@@ -66,7 +68,9 @@ final List<_ComponentEntry> _componentEntries = [
   const _ComponentEntry('ApplicationLoading', _ApplicationLoadingPlayground()),
   const _ComponentEntry('CatalogCard', _CatalogCardPlayground()),
   const _ComponentEntry('CatalogList', _CatalogListPlayground()),
-  const _ComponentEntry('HeaderMenus', _HeaderMenusPlayground()),
+  const _ComponentEntry('HeaderMenuHelp', _HeaderMenuHelpPlayground()),
+  const _ComponentEntry('HeaderMenuMore', _HeaderMenuMorePlayground()),
+  const _ComponentEntry('HeaderMenuSettings', _HeaderMenuSettingsPlayground()),
   const _ComponentEntry('Toolbar', _ToolbarPlayground()),
   const _ComponentEntry('WorkflowAssistant', _WorkflowAssistantPlayground()),
 ]..sort((a, b) => a.name.compareTo(b.name));
@@ -614,72 +618,59 @@ class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
   }
 }
 
-/// The three named-constructor variants offered by [HeaderMenus]'s "Type"
-/// dropdown.
-enum _HeaderMenusDemoType { more, help, settings }
-
-extension on _HeaderMenusDemoType {
-  String get label => switch (this) {
-        _HeaderMenusDemoType.more => 'More',
-        _HeaderMenusDemoType.help => 'Help',
-        _HeaderMenusDemoType.settings => 'Settings',
-      };
-}
-
-/// Live, controls-driven preview of [HeaderMenus]: a dropdown selecting which
-/// of the three named-constructor variants (more/help/settings) to render.
-class _HeaderMenusPlayground extends StatefulWidget {
-  const _HeaderMenusPlayground();
-
-  @override
-  State<_HeaderMenusPlayground> createState() =>
-      _HeaderMenusPlaygroundState();
-}
-
-class _HeaderMenusPlaygroundState extends State<_HeaderMenusPlayground> {
-  _HeaderMenusDemoType _type = _HeaderMenusDemoType.more;
+/// Live preview of [HeaderMenuHelp]: press the button to open its menu.
+class _HeaderMenuHelpPlayground extends StatelessWidget {
+  const _HeaderMenuHelpPlayground();
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
 
-    final preview = switch (_type) {
-      _HeaderMenusDemoType.more => const HeaderMenus.more(),
-      _HeaderMenusDemoType.help => const HeaderMenus.help(),
-      _HeaderMenusDemoType.settings => const HeaderMenus.settings(),
-    };
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(tokens.spacing.layout.l),
+      child: _Section(
+        title: 'HeaderMenuHelp',
+        caption: 'Press the button to open its menu.',
+        child: const Center(child: HeaderMenuHelp()),
+      ),
+    );
+  }
+}
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(tokens.spacing.layout.l),
-            child: _Section(
-              title: 'HeaderMenus',
-              caption: 'Press the button to open its menu. Choose the '
-                  'variant on the right.',
-              child: Center(child: preview),
-            ),
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        _ControlsPanel(
-          children: [
-            _ControlField(
-              label: 'Type',
-              child: DSDropdown<_HeaderMenusDemoType>(
-                items: [
-                  for (final type in _HeaderMenusDemoType.values)
-                    DSDropdownItem(value: type, title: type.label),
-                ],
-                value: _type,
-                onChanged: (value) => setState(() => _type = value ?? _type),
-              ),
-            ),
-          ],
-        ),
-      ],
+/// Live preview of [HeaderMenuMore]: press the button to open its menu.
+class _HeaderMenuMorePlayground extends StatelessWidget {
+  const _HeaderMenuMorePlayground();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(tokens.spacing.layout.l),
+      child: _Section(
+        title: 'HeaderMenuMore',
+        caption: 'Press the button to open its menu.',
+        child: const Center(child: HeaderMenuMore()),
+      ),
+    );
+  }
+}
+
+/// Live preview of [HeaderMenuSettings]: press the button to open its panel.
+class _HeaderMenuSettingsPlayground extends StatelessWidget {
+  const _HeaderMenuSettingsPlayground();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(tokens.spacing.layout.l),
+      child: _Section(
+        title: 'HeaderMenuSettings',
+        caption: 'Press the button to open its panel.',
+        child: const Center(child: HeaderMenuSettings()),
+      ),
     );
   }
 }

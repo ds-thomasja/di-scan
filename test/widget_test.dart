@@ -7,7 +7,9 @@ import 'package:lightning_core_ui/lightning_core_ui.dart';
 import 'package:di_scan/components/application_loading/application_loading.dart';
 import 'package:di_scan/components/catalog_card/catalog_card.dart';
 import 'package:di_scan/components/catalog_list/catalog_list.dart';
-import 'package:di_scan/components/header_menus/header_menus.dart';
+import 'package:di_scan/components/header_menu_help/header_menu_help.dart';
+import 'package:di_scan/components/header_menu_more/header_menu_more.dart';
+import 'package:di_scan/components/header_menu_settings/header_menu_settings.dart';
 import 'package:di_scan/components/toolbar/toolbar.dart';
 import 'package:di_scan/components/workflow_assistant/workflow_assistant.dart';
 import 'package:di_scan/main.dart';
@@ -29,7 +31,9 @@ void main() {
     // The sidebar lists every component, alphabetically.
     expect(find.text('CatalogCard'), findsOneWidget);
     expect(find.text('CatalogList'), findsOneWidget);
-    expect(find.text('HeaderMenus'), findsOneWidget);
+    expect(find.text('HeaderMenuHelp'), findsOneWidget);
+    expect(find.text('HeaderMenuMore'), findsOneWidget);
+    expect(find.text('HeaderMenuSettings'), findsOneWidget);
     expect(find.text('Toolbar'), findsOneWidget);
     expect(find.text('WorkflowAssistant'), findsOneWidget);
 
@@ -39,7 +43,9 @@ void main() {
     expect(find.byType(ApplicationLoading), findsOneWidget);
     expect(find.byType(CatalogCard), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
-    expect(find.byType(HeaderMenus), findsNothing);
+    expect(find.byType(HeaderMenuHelp), findsNothing);
+    expect(find.byType(HeaderMenuMore), findsNothing);
+    expect(find.byType(HeaderMenuSettings), findsNothing);
     expect(find.byType(Toolbar), findsNothing);
 
     // Selecting CatalogCard in the sidebar swaps the main content.
@@ -51,7 +57,7 @@ void main() {
     expect(find.byType(CatalogCard), findsOneWidget);
     expect(find.byType(ApplicationLoading), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
-    expect(find.byType(HeaderMenus), findsNothing);
+    expect(find.byType(HeaderMenuMore), findsNothing);
 
     // Selecting CatalogList in the sidebar swaps the main content.
     await tester.tap(find.text('CatalogList'));
@@ -61,19 +67,39 @@ void main() {
     expect(find.text('CatalogList'), findsNWidgets(2));
     expect(find.byType(CatalogList), findsOneWidget);
     expect(find.byType(CatalogCard), findsNWidgets(3)); // inside CatalogList
-    expect(find.byType(HeaderMenus), findsNothing);
+    expect(find.byType(HeaderMenuMore), findsNothing);
 
-    // Selecting HeaderMenus in the sidebar swaps the main content again.
-    // It defaults to the "More" variant, driven by the Type dropdown.
-    await tester.tap(find.text('HeaderMenus'));
+    // Selecting HeaderMenuMore in the sidebar swaps the main content again.
+    await tester.tap(find.text('HeaderMenuMore'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('HeaderMenus'), findsNWidgets(2));
-    expect(find.byType(HeaderMenus), findsOneWidget);
+    expect(find.text('HeaderMenuMore'), findsNWidgets(2));
+    expect(find.byType(HeaderMenuMore), findsOneWidget);
     expect(find.byType(CatalogCard), findsNothing);
     expect(find.byType(CatalogList), findsNothing);
+    expect(find.byType(HeaderMenuHelp), findsNothing);
+    expect(find.byType(HeaderMenuSettings), findsNothing);
     expect(find.byType(Toolbar), findsNothing);
+
+    // Selecting HeaderMenuHelp in the sidebar swaps the main content again.
+    await tester.tap(find.text('HeaderMenuHelp'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('HeaderMenuHelp'), findsNWidgets(2));
+    expect(find.byType(HeaderMenuHelp), findsOneWidget);
+    expect(find.byType(HeaderMenuMore), findsNothing);
+    expect(find.byType(HeaderMenuSettings), findsNothing);
+
+    // Selecting HeaderMenuSettings in the sidebar swaps the main content again.
+    await tester.tap(find.text('HeaderMenuSettings'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('HeaderMenuSettings'), findsNWidgets(2));
+    expect(find.byType(HeaderMenuSettings), findsOneWidget);
+    expect(find.byType(HeaderMenuHelp), findsNothing);
 
     // Selecting Toolbar in the sidebar swaps the main content again.
     await tester.tap(find.text('Toolbar'));
@@ -82,7 +108,31 @@ void main() {
 
     expect(find.text('Toolbar'), findsNWidgets(2));
     expect(find.byType(Toolbar), findsOneWidget);
-    expect(find.byType(HeaderMenus), findsNothing);
+    expect(find.byType(HeaderMenuSettings), findsNothing);
+  });
+
+  testWidgets(
+      "HeaderMenuHelp's popup lists About DI Scan, Give feedback and "
+      'Onboarding, in that order', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('HeaderMenuHelp'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.byType(HeaderMenuHelp));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('About DI Scan'), findsOneWidget);
+    expect(find.text('Give feedback'), findsOneWidget);
+    expect(find.text('Onboarding'), findsOneWidget);
   });
 
   testWidgets(

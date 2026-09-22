@@ -1,0 +1,104 @@
+h2. User Story
+
+As a clinician using the scanning application, I want to adjust scanning preferences (render style, autorotation, sound feedback, seat position, and hole highlighting) from the header, so that I can tailor the scanning experience without leaving the current screen.
+
+
+h2. Design Definition & Assets
+
+- Figma Link: [Header Menu Settings|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5620-27629]
+- Design Definition (Jira): TBD — no ticket identified for this specific node; *confirm with Product/Design whether one exists or needs to be created* (the sibling More menu's spec cites [S3806-6113|https://jira.dentsplysirona.com/browse/S3806-6113], which does not cover Settings).
+- Flutter Component: TBD — not yet pushed to origin ({{header_menu_settings.dart}} exists locally in this working tree but the repo's {{origin/main}} does not have it yet).
+- Interaction Model: The Settings button is a horizontal-sliders ({{DSIcons.settingsLinesHorizontal}}) icon button in the header, built directly on {{DSCrudeButtonThemeData.tertiary}} inside a {{DSModalPopupAnchor}} (not {{DSActionsButton}}, since the popup content is a preferences panel rather than an action list). Tapping it opens a panel anchored to the button (preferred bottom-right, falling back to bottom-left then top-right if there is insufficient space), showing four sections in order: Render style, Sound, View, Holes detection. The panel closes on an outside tap. While the panel is open, the button shows a pressed/"open" look, tracked locally via {{_settingsOpen}} state (driving {{DSClickableState.pressed}} on the trigger, since {{DSToggleButton}}'s tinted "selected" look — meant for persistent filter-style toggles — doesn't match the neutral pressed look the other header buttons use while open). The button carries a "Settings" tooltip.
+
+
+h2. Component Props
+
+|| Prop || Type || Default || Description ||
+| (none) | | | {{HeaderMenuSettings}} takes no constructor parameters — its panel's controls hold local demo state only (render style, autorotation, feedback-active-scanning, sound + volume, seat position, highlight holes), seeded from the values shown in the Figma "Open=true" snapshot. *Confirm with Product whether these controls need to be wired to real scanning preferences/persistence*, since the Figma node itself only documents the visual panel, not a data contract. |
+
+
+h2. Component Anatomy & Flutter Mapping
+
+|| Element || Flutter Widget || Documentation ||
+| Trigger icon button (sliders) | {{DSCrudeButton}} (themeData: {{DSCrudeButtonThemeData.tertiary}}, icon: {{DSIcons.settingsLinesHorizontal}}) wrapped in {{DSTooltip}} (message: "Settings") — anchored via {{DSModalPopupAnchor}} | [Button|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button] |
+| Settings panel container | {{Container}} (272 px content width + {{var(--spacing/component/m)}} horizontal padding on each side), wrapped in {{Material(type: MaterialType.transparency)}} since the popup route provides no {{Material}} ancestor for the Material-based DS controls inside | n/a |
+| "Render style" section header / "Sound" section header / "View" section header / "Holes detection" section header | {{Text}} styled with {{tokens.text.textBaseStrong}} | n/a |
+| Render style dropdown | {{DSDropdown<String>}} (stretch: true), single option "White light (Default)" | [Dropdown|https://zeroheight.com/0b922d40b/v/0/p/509c11-dropdown] |
+| "Autotoration" toggle | {{DSSwitch}} (label: "Autotoration") | [Switch|https://zeroheight.com/0b922d40b/v/0/p/7699c7-switch] |
+| Section divider (×3) | {{DSDivider.horizontal}} | [Divider|https://zeroheight.com/0b922d40b/v/0/p/510a1c-divider] |
+| "Feedback active scanning" toggle | {{DSSwitch}} (label: "Feedback active scanning") | [Switch|https://zeroheight.com/0b922d40b/v/0/p/7699c7-switch] |
+| Sound dropdown | {{DSDropdown<String>}} (stretch: true), single option "Pulse" | [Dropdown|https://zeroheight.com/0b922d40b/v/0/p/509c11-dropdown] |
+| Sound volume slider | {{DSSlider}} (min: 0, max: 100, divisions: 10, showMinMax: true, showValueIndicator: {{DSSliderShowValueIndicator.never}}) | [Slider|https://zeroheight.com/0b922d40b/v/0/p/2508f3-slider] |
+| "Seat position relative to patient" label | {{Text}} styled with {{tokens.text.textBase}} | n/a |
+| Seat position radio group (3 options) | {{DSRadio<SeatPosition>}} × 3 ("Facing for lower, behind for upper" / "Always next to or facing" / "Always behind") | [Radio button|https://zeroheight.com/0b922d40b/v/0/p/973639-radio-button] |
+| "Highlight holes" toggle | {{DSSwitch}} (label: "Highlight holes") | [Switch|https://zeroheight.com/0b922d40b/v/0/p/7699c7-switch] |
+
+
+h2. Acceptance Criteria
+
+ - *Functional:*
+ -- Tapping the trigger button opens the settings panel; tapping outside the panel closes it (native {{DSModalPopupAnchor}} dismissal — no explicit close button on the panel itself, per the Figma node).
+ -- The panel's four sections always render in the fixed order: Render style → Sound → View → Holes detection, separated by a horizontal divider between each.
+ -- All controls hold local, in-memory demo state only; nothing persists across sessions or affects real scanning behavior in this component (*confirm with Product* whether/how these should be wired to a real preferences store).
+ -- The Render style and Sound dropdowns each currently expose only a single option ("White light (Default)" and "Pulse" respectively) — *confirm with Design/Product whether more options are planned*, since a single-item dropdown is an unusual end state.
+
+ - *Tooltip:*
+ -- The trigger button shows a "Settings" tooltip via {{DSTooltip}} (default DS tooltip behavior/timing — not overridden by this component).
+
+ - *States:*
+ -- Trigger button, default: transparent background.
+ -- Trigger button, pressed / panel open: {{var(--action-tertiary/pressed, rgba(0,0,0,0.16))}} background, matching {{DSCrudeButtonThemeData.tertiary}}'s pressed state — applied here via {{_settingsOpen}}-driven {{DSClickableState.pressed}} rather than a native gesture-pressed state, so the "open" look persists for the panel's whole lifetime rather than just the initial tap.
+ -- Panel background: {{var(--surface/standard, #ffffff)}}.
+ -- Radio/switch/dropdown states (hover/pressed/checked) are DS-internal and not independently re-verified here.
+
+ - *A11y:*
+ -- Keyboard/focus behavior for the dropdowns, switches, slider and radio group is handled internally by their respective DS widgets; not independently re-verified here.
+ -- No additional ARIA/semantics labels are specified by the Figma node itself; the component relies entirely on the underlying DS widgets' own built-in accessibility behavior — *not independently audited here, recommend a dedicated a11y pass if required for release*.
+
+ - *Visual Fidelity:*
+ -- *Trigger icon button:*
+ --- Sizing: 24×24 px icon ({{DSIcons.settingsLinesHorizontal}}, {{var(--icon/size/m)}} = 24 px), inside 8 px padding on all sides ({{var(--spacing/component/xs)}}) — 40×40 px effective tap target.
+ --- Icon color: {{var(--icon/standard, #242424)}}.
+ --- Border-radius: {{var(--border/radius/standard, 12px)}}.
+ -- *Panel container:*
+ --- Sizing: fixed 272 px content width (matching the Figma node's {{min-w-[272px]}} content block) plus {{var(--spacing/component/m, 16px)}} horizontal padding on each side.
+ --- Background: {{var(--surface/standard, #ffffff)}}.
+ --- Border-radius: {{var(--border/radius/standard, 12px)}}.
+ --- Shadow: {{var(--shadows/elevation-3)}} = x 0 px, y 4 px, blur 20 px, spread 6 px, color {{rgba(0,0,0,0.08)}}.
+ --- Padding: {{var(--spacing/component/xs, 8px)}} top/bottom.
+ --- Position: anchored to the trigger button, preferred bottom-right, falling back to bottom-left then top-right when there isn't room (per {{HeaderMenuSettings}}'s {{alternativePositions}}).
+ -- *Section headers:* Be Vietnam Pro SemiBold, 16 px / 24 px line-height / -0.4 px letter-spacing ({{Text/textBaseStrong}}), color {{var(--text/standard, #242424)}} in the Figma export (rendered black in the current component via {{tokens.text.standard}}).
+ -- *Body text ("Seat position relative to patient" label, dropdown values, switch labels, radio labels):* Be Vietnam Pro Regular, 16 px / 24 px line-height / -0.4 px letter-spacing ({{Text/textBase}}), color {{var(--text/standard, #242424)}}.
+ -- *Dividers:* {{var(--border/standard, #d7d7d7)}}, 1 px.
+ -- *Dropdown border:* {{var(--border/standard, #d7d7d7)}}, {{var(--border/width/standard, 1px)}}, 40 px row height, {{var(--border/radius/standard, 12px)}} corners.
+ -- *Slider:* rail color {{#d7d7d7}}, filled-track color {{#0f62fe}}, 24×24 px thumb.
+ -- Spacing between sections/controls follows the Figma "Layout spacing" annotation blocks (visible in the raw export as XS-scale spacer nodes) — approximated in the component via {{tokens.spacing.component.xs}} (item gaps) and {{tokens.spacing.component.m}} (section gaps); *not pixel-verified against the annotation values themselves*.
+
+
+h2. Content Logic & Edge Cases
+
+- *Single-option dropdowns:* both "Render style" and "Sound" currently offer exactly one selectable value each, so the dropdown opens to a list of one item that is already selected — *flag to Design/Product*, since this reads as an unfinished feature state rather than an intentional design.
+- *Panel width vs. viewport edge:* the panel is anchored to the button with three fallback positions (bottom-right → bottom-left → top-right), so it should stay on-screen at any reasonable header width; not independently verified at extreme viewport sizes.
+- *No persisted state:* closing and reopening the panel within the same app session keeps whatever local state was last set (since the state lives in {{_SettingsPanelState}}, not in {{HeaderMenuSettings}} itself, so it actually resets on parent rebuild) — *confirm with Product* whether settings should survive across app restarts, which would require real storage this component does not provide.
+
+
+h2. Responsiveness & Links
+
+- No responsive/breakpoint behavior — the trigger button and panel both render at their intrinsic/fixed sizes regardless of viewport width.
+- Figma: [Header Menu Settings|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5620-27629]
+- Design Definition (Jira): TBD
+- Storybook: [Button|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Button]
+- Storybook: [Dropdown|https://zeroheight.com/0b922d40b/v/0/p/509c11-dropdown]
+- Storybook: [Switch|https://zeroheight.com/0b922d40b/v/0/p/7699c7-switch]
+- Storybook: [Slider|https://zeroheight.com/0b922d40b/v/0/p/2508f3-slider]
+- Storybook: [Radio button|https://zeroheight.com/0b922d40b/v/0/p/973639-radio-button]
+- Storybook: [Divider|https://zeroheight.com/0b922d40b/v/0/p/510a1c-divider]
+
+
+h2. Approvals
+
+||Team involved||Responsible||Status||
+|Design|[~Thomas.Jakob@dentsplysirona.com] | |
+|Product Management|[] | |
+|Product Owner|[] | |
+| | | |
