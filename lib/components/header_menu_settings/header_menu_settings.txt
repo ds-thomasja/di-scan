@@ -7,7 +7,7 @@ h2. Design Definition & Assets
 
 - Figma Link: [Header Menu Settings|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5620-27629]
 - Design Definition (Jira): TBD — no ticket identified for this specific node; *confirm with Product/Design whether one exists or needs to be created* (the sibling More menu's spec cites [S3806-6113|https://jira.dentsplysirona.com/browse/S3806-6113], which does not cover Settings).
-- Flutter Component: TBD — not yet pushed to origin ({{header_menu_settings.dart}} exists locally in this working tree but the repo's {{origin/main}} does not have it yet).
+- Flutter Component: [header_menu_settings.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/header_menu_settings/header_menu_settings.dart]
 - Interaction Model: The Settings button is a horizontal-sliders ({{DSIcons.settingsLinesHorizontal}}) icon button in the header, built directly on {{DSCrudeButtonThemeData.tertiary}} inside a {{DSModalPopupAnchor}} (not {{DSActionsButton}}, since the popup content is a preferences panel rather than an action list). Tapping it opens a panel anchored to the button (preferred bottom-right, falling back to bottom-left then top-right if there is insufficient space), showing four sections in order: Render style, Sound, View, Holes detection. The panel closes on an outside tap. While the panel is open, the button shows a pressed/"open" look, tracked locally via {{_settingsOpen}} state (driving {{DSClickableState.pressed}} on the trigger, since {{DSToggleButton}}'s tinted "selected" look — meant for persistent filter-style toggles — doesn't match the neutral pressed look the other header buttons use while open). The button carries a "Settings" tooltip.
 
 

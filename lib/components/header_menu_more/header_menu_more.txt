@@ -7,7 +7,7 @@ h2. Design Definition & Assets
 
 - Figma Link: [Header Menu More|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4806-26687]
 - Design Definition (Jira): [S3806-6113|https://jira.dentsplysirona.com/browse/S3806-6113] — status *Draft*.
-- Flutter Component: TBD — not yet pushed to origin ({{header_menu_more.dart}} exists locally in this working tree but the repo's {{origin/main}} does not have it yet).
+- Flutter Component: [header_menu_more.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/header_menu_more/header_menu_more.dart]
 - Interaction Model: The More button is a kebab (three vertical dots) icon button in the header, built on {{DSActionsButton.iconTertiary}}. Tapping it opens a popup menu anchored to the button (preferred bottom-right, falling back to top-right if there is insufficient space below), listing three actions in a single section: "Create design", "Open in Canvas", "Finish and close". Selecting an action closes the popup first, then invokes that action's callback ({{onCreateDesign}} / {{onOpenInCanvas}} / {{onFinishAndClose}}) — the component itself does not perform navigation or any side effect; the host app owns what each action actually does. The popup also closes on an outside tap. While the popup is open, the button shows a pressed/"open" look. The button carries a "More" tooltip.
 
 
