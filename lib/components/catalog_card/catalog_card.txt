@@ -1,129 +1,87 @@
 h2. User Story
 
-As a clinical user, I want a selectable card representing a single scan-catalog entry — with clear default/hover/pressed/focus/disabled and drag-and-drop states — so that I can review, select, expand, remove, and reorder individual scan steps within a catalog list.
-
-
-h2. Design Definition & Assets
-
-- Figma Link: [Catalog card|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=2004-354]
-- Figma Behavior: [.Catalog card drag (Placeholder / Release / Loading / Moving states)|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4750-15310]
-- Flutter Component: [catalog_card.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/catalog_card/catalog_card.dart] — *this link points at the last commit pushed to {{main}}.* The local working tree has newer, uncommitted changes on top of it (a same-day Figma drag-and-drop reconciliation pass — see Content Logic & Edge Cases) which this document already describes; re-verify the link once those changes are committed and pushed.
-- Interaction Model: {{CatalogCard}} renders in two layouts driven by {{selected}}: a fixed 288×96 px *compact* row (thumbnail + label, optional trailing status icon) when unselected, or a taller *expanded* stack (full-width image/scan-model area on top, label row with optional status icon and a "Remove catalog" overflow menu below) when selected. Tapping the card toggles {{selected}} internally (mirrored to the host via {{onSelectedChanged}}) and fires {{onTap}} first. Hover/pressed/focus visuals are handled internally via {{FocusableActionDetector}} + {{GestureDetector}}, with a scale-down "press" micro-animation ({{AnimatedScale}} to {{0.97}}) that is suppressed while hovering the overflow-menu button so pressing that button doesn't also visually depress the whole card. Three mutually-relevant external flags — {{isDragSource}}, {{isDragTarget}}, {{isLoading}} — override the card's normal content and are driven entirely by a parent {{CatalogList}} orchestrating a long-press drag-and-drop reorder; {{CatalogCard}} itself has no drag gesture detection of its own.
-
-
-h2. Component Props
-
-|| Prop || Type || Default || Description ||
-| {{name}} | {{String}} | {{'Catalog name'}} | Primary label text. |
-| {{subtext}} | {{String}} | {{'Subtext'}} | Secondary label text shown below {{name}}. |
-| {{showSubtext}} | {{bool}} | {{true}} | Whether {{subtext}} is visible. |
-| {{scanModel}} | {{bool}} | {{false}} | When {{true}}, the card uses a real scan image ({{scanModelImage}}) instead of the arch-upper placeholder icon. |
-| {{scanModelImage}} | {{Widget?}} | {{null}} | The scan image widget. Required when {{scanModel}} is {{true}}; falls back to the arch-upper icon when {{null}} even if {{scanModel}} is {{true}}. |
-| {{selected}} | {{bool}} | {{false}} | *Initial* expanded (card-view) vs. compact (list-view) state only; tapping toggles this internally (see {{didUpdateWidget}} re-sync). |
-| {{disabled}} | {{bool}} | {{false}} | Disables all interaction (tap, hover, press, focus) and applies disabled visual styling. |
-| {{showStatus}} | {{bool}} | {{false}} | Shows the check-circle-filled status icon in the label row. |
-| {{isDragTarget}} | {{bool}} | {{false}} | Host-driven: this card is the current valid drop target of an in-progress drag elsewhere in the list. Shows a dropzone background, dashed interactive-colored border, an interactive-colored repeat icon in place of the thumbnail/image, fixed "Switch" label text, and hides subtext. |
-| {{isDragSource}} | {{bool}} | {{false}} | Host-driven: this card is the one currently being long-pressed/dragged. Shows a subdued background with a dashed border; name/subtext always render with disabled-style text regardless of {{selected}}; in the expanded layout the image area renders empty (no icon, no background). |
-| {{isLoading}} | {{bool}} | {{false}} | Host-driven: shows an indeterminate {{DSProgressCircle}} in the image/thumbnail slot and suppresses the status icon; used while a drag-drop swap is settling. |
-| {{onRemovePressed}} | {{VoidCallback?}} | {{null}} | Called when the user confirms "Remove catalog" from the overflow-menu action list. Only rendered (expanded layout) when non-null *and* {{!isDragSource}}. |
-| {{onTap}} | {{VoidCallback?}} | {{null}} | Called after every tap, before the internal {{selected}} state flips. |
-| {{onSelectedChanged}} | {{ValueChanged<bool>?}} | {{null}} | Called whenever the internal selected state changes, with the new value. |
-
+As a clinical user, I want a selectable card representing a single scan-catalog entry – with clear states, so that I can select and remove individual scan catalogs within a catalog list.
+h2. Relevant links
+ * Figma Component: [Catalog card|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=2004-354]
+ * Flutter Component: [catalog_card.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/catalog_card/catalog_card.dart]
 
 h2. Component Anatomy & Flutter Mapping
-
-|| Element || Flutter Widget || Documentation ||
-| Root | {{SizedBox(width: 288)}} + {{FocusableActionDetector}} + {{GestureDetector}} + {{AnimatedScale}} + {{Stack}} (card content, then a selection/drag-source/drag-target overlay layered on top) | n/a |
-| Card surface | {{ClipRRect}} + {{AnimatedContainer}} (color transition, {{200 ms}}) + {{DecoratedBox}} (border, foreground-positioned) + {{AnimatedSize}} (layout transition, {{380 ms}}, {{Curves.easeOutQuint}}) switching between compact/expanded content | n/a |
-| Selection overlay (selected, not dragging) | {{Positioned.fill}} + {{IgnorePointer}} + {{DecoratedBox}} — 2 px border, color {{tokens.border.interactiveHovered}} | n/a |
-| Drag-source overlay | {{Positioned.fill}} + {{IgnorePointer}} + {{CustomPaint}} (private {{_DashedRoundedBorderPainter}}) — 2 px dashed border, color {{tokens.border.standard}} | n/a |
-| Drag-target overlay | Same {{_DashedRoundedBorderPainter}}, 2 px dashed border, color {{tokens.border.interactive}} | n/a |
-| Compact thumbnail (64×64) | {{Container}} (bg {{tokens.background.standard}}, {{BlendMode.multiply}}) + centered {{DSIcon.medium(iconRef: DSIcons.archUpper)}} — or, when {{scanModel}} + {{scanModelImage}} set, an {{Opacity}} + {{ClipRRect}} + private {{_MultiplyLayer}} wrapping {{scanModelImage}} | n/a — custom multiply-blend layer, no DS counterpart |
-| Expanded image (full-width, {{288:162}} aspect ratio) | Same pattern as the compact thumbnail, scaled up ({{DSIcon.large}}, {{48}} px icon) | n/a |
-| Loading thumbnail/image | {{DSProgressCircle.medium()}} centered in a {{SizedBox}}/{{AspectRatio}} matching the compact/expanded slot size | [Progress indicator\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Progress%20indicator] |
-| Drag-target thumbnail/image | {{DSIcon.medium}} (compact) / {{DSIcon.large}} (expanded), {{iconRef: DSIcons.repeat}}, color {{tokens.icon.interactive}} | n/a |
-| Name / subtext | {{Stack}} of an invisible ({{Opacity: 0.0}}) height-reserving {{Column}} + a {{Positioned.fill}} real {{Column}} of two {{Text}} widgets, single line, ellipsis overflow | n/a |
-| Status icon | {{Padding}} + {{DSIcon.medium(iconRef: DSIcons.checkCircleFilled)}} | [Icon\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Icon] |
-| Remove-catalog overflow menu | {{MouseRegion}} + {{DSActionsButton.iconTertiary}} ({{icon: DSIcons.dotsVertical}}, {{actions: [[DSAction(title: 'Remove catalog', icon: DSIcons.removeCircle, destructive: true, onTrigger: onRemovePressed)]]}}) | [Actions button\|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Actions%20button] |
-
-
+||Element||Flutter Widget||Documentation||
+|Card surface|{{ClipRRect}} + {{AnimatedContainer}} (color transition, {{{}200 ms{}}}) + {{DecoratedBox}} (border, foreground-positioned) + {{AnimatedSize}} (layout transition, {{{}380 ms{}}}, {{{}Curves.easeOutQuint{}}}) switching between compact/expanded content|n/a|
+|Selection overlay (selected, not dragging)|{{Positioned.fill}} + {{IgnorePointer}} + {{DecoratedBox}} — 2 px border, color {{tokens.border.interactiveHovered}}|n/a|
+|Drag-source overlay|{{Positioned.fill}} + {{IgnorePointer}} + {{CustomPaint}} (private {{{}_DashedRoundedBorderPainter{}}}) — 2 px dashed border, color {{tokens.border.standard}}|n/a|
+|Drag-target overlay|Same {{{}_DashedRoundedBorderPainter{}}}, 2 px dashed border, color {{tokens.border.interactive}}|n/a|
+|Compact thumbnail (64×64)|{{Container}} (bg {{{}tokens.background.standard{}}}, {{{}BlendMode.multiply{}}}) + centered {{DSIcon.medium(iconRef: DSIcons.archUpper)}} — or, when {{scanModel}} + {{scanModelImage}} set, an {{Opacity}} + {{ClipRRect}} + private {{_MultiplyLayer}} wrapping {{scanModelImage}}|n/a — custom multiply-blend layer, no DS counterpart|
+|Expanded image (full-width, {{288:162}} aspect ratio)|Same pattern as the compact thumbnail, scaled up ({{{}DSIcon.large{}}}, {{48}} px icon)|n/a|
+|Loading thumbnail/image|{{DSProgressCircle.medium()}} centered in a {{{}SizedBox{}}}/{{{}AspectRatio{}}} matching the compact/expanded slot size|[Progress indicator|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Progress%20indicator]|
+|Drag-target thumbnail/image|{{DSIcon.medium}} (compact) / {{DSIcon.large}} (expanded), {{{}iconRef: DSIcons.repeat{}}}, color {{tokens.icon.interactive}}|n/a|
+|Name / subtext|{{Stack}} of an invisible ({{{}Opacity: 0.0{}}}) height-reserving {{Column}} + a {{Positioned.fill}} real {{Column}} of two {{Text}} widgets, single line, ellipsis overflow|n/a|
+|Status icon|{{Padding}} + {{DSIcon.medium(iconRef: DSIcons.checkCircleFilled)}}|[Icon|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Icon]|
+|Remove-catalog overflow menu|{{MouseRegion}} + {{DSActionsButton.iconTertiary}} ({{{}icon: DSIcons.dotsVertical{}}}, {{{}actions: [[DSAction(title: 'Remove catalog', icon: DSIcons.removeCircle, destructive: true, onTrigger: onRemovePressed)]]{}}})|[Actions button|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Actions%20button]|
 h2. Acceptance Criteria
-
  - *Functional:*
- -- Tapping the card (when not {{disabled}}) calls {{onTap}}, then flips the internal selected state and calls {{onSelectedChanged}} with the new value.
- -- {{selected}} only seeds the *initial* layout; subsequent external changes to {{selected}} are re-synced via {{didUpdateWidget}} (so a host that owns selection externally, like {{CatalogList}}, can still drive the card after the first build).
- -- When {{isDragTarget}}, the label always shows the fixed text "Switch" (colour {{text.interactive}}) regardless of {{name}}, and {{subtext}} is force-hidden even if {{showSubtext}} is {{true}}.
- -- When {{isDragSource}}, {{name}}/{{subtext}} render using {{name}}/{{subtext}} verbatim but always in {{text.disabled}} colour, regardless of {{selected}} — *this was a same-day fix; previously the placeholder used {{text.standard}} when the dragged item happened to be selected, which is now overridden unconditionally.*
- -- The status icon and the "Remove catalog" overflow menu are both suppressed whenever {{isDragSource}} or {{isDragTarget}} is true (`&& !widget.isDragSource && !widget.isDragTarget` / `&& !widget.isDragSource` guards) — *also a same-day fix; the placeholder previously still rendered its remove button and, if {{showStatus}}, its status icon, neither of which appear in the Figma Placeholder node (4750:15781 / 4750:15794).*
- -- A card the user is hovering the overflow-menu button on does not trigger the whole-card press-scale animation ({{_isButtonHovered}} guard), even while the pointer is technically down on the card.
+ -- Tapping the card (when not {{{}disabled{}}}) calls {{{}onTap{}}}, then flips the internal selected state and calls {{onSelectedChanged}} with the new value.
+ -- {{selected}} only seeds the *initial* layout; subsequent external changes to {{selected}} are re-synced via {{didUpdateWidget}} (so a host that owns selection externally, like {{{}CatalogList{}}}, can still drive the card after the first build).
+ -- When {{{}isDragTarget{}}}, the label always shows the fixed text "Switch" (colour {{{}text.interactive{}}}) regardless of {{{}name{}}}, and {{subtext}} is force-hidden even if {{showSubtext}} is {{{}true{}}}.
+ -- When {{{}isDragSource{}}}, {{{}name{}}}/{{{}subtext{}}} render using {{{}name{}}}/{{{}subtext{}}} verbatim but always in {{text.disabled}} colour, regardless of {{selected}} — *this was a same-day fix; previously the placeholder used {{text.standard}} when the dragged item happened to be selected, which is now overridden unconditionally.*
+ -- The status icon and the "Remove catalog" overflow menu are both suppressed whenever {{isDragSource}} or {{isDragTarget}} is true (`&& !widget.isDragSource && !widget.isDragTarget` / `&& !widget.isDragSource` guards) — *also a same-day fix; the placeholder previously still rendered its remove button and, if {{{}showStatus{}}}, its status icon, neither of which appear in the Figma Placeholder node (4750:15781 / 4750:15794).*
+ -- A card the user is hovering the overflow-menu button on does not trigger the whole-card press-scale animation ({{{}_isButtonHovered{}}} guard), even while the pointer is technically down on the card.
 
  - *States:*
- -- Default: {{surface.standard}} background, 1 px {{border.subdued}} border (compact) or no border (expanded, since the compact card's border is drawn via {{Border.all}} only when {{!_selected}}).
+ -- Default: {{surface.standard}} background, 1 px {{border.subdued}} border (compact) or no border (expanded, since the compact card's border is drawn via {{Border.all}} only when {{{}!_selected{}}}).
  -- Hover (not disabled, not pressed via the overflow button): {{surface.hovered}} background.
  -- Pressed (not via the overflow button): {{surface.pressed}} background, card scales to {{0.97}} over {{80 ms}} (ease-in-cubic in, {{300 ms}} ease-out on release).
  -- Focus: {{surface.standard}} background with a {{2 px}} {{border.focused}} border (overrides the default subdued border while focused).
- -- Disabled: background stays {{surface.standard}}; text renders {{text.disabled}}; icon renders {{icon.disabled}}; in the *expanded, with-scan-model* layout the whole image area additionally renders at {{opacities.disabled}} (0.4) via an {{Opacity}} wrapper — confirmed against Figma node 2290:3639. *Not independently re-verified against Figma for the expanded, without-scan-model (plain arch-icon) disabled variant — the implementation only changes the icon's colour there (no 0.4 group-opacity wrapper), by analogy with the compact disabled variant; flag for visual confirmation against Figma node 2290:3630 if that combination is exercised.*
+ -- Disabled: background stays {{{}surface.standard{}}}; text renders {{{}text.disabled{}}}; icon renders {{{}icon.disabled{}}}; in the *expanded, with-scan-model* layout the whole image area additionally renders at {{opacities.disabled}} (0.4) via an {{Opacity}} wrapper. *Not independently re-verified against Figma for the expanded, without-scan-model (plain arch-icon) disabled variant — the implementation only changes the icon's colour there (no 0.4 group-opacity wrapper), by analogy with the compact disabled variant; flag for visual confirmation against Figma node 2290:3630 if that combination is exercised.*
  -- Selected (not dragging): expanded layout, plus a 2 px {{border.interactiveHovered}} border drawn as a separate overlay on top of the card.
- -- Drag source: {{surface.subdued}} background, transparent base border with a 2 px dashed {{border.standard}} overlay; image area empty (expanded) or an {{archUpper}} icon in {{icon.disabled}} (compact); text {{text.disabled}}; status icon and remove-menu both hidden; *dashed-border layout is now always {{Positioned.fill}} (unconditional) — a {{dragHasTarget}}-driven inset/extended-border toggle that previously existed was removed same-day on explicit user feedback that the placeholder should look identical regardless of whether another card is currently a valid drop target elsewhere in the list.*
- -- Drag target: {{surface.dropzone}} background, transparent base border with a {{2 px}} dashed {{border.interactive}} overlay (now always {{border.width.dropzone}}, 2 px, regardless of {{selected}} — a same-day fix; previously the non-selected/compact target used {{border.width.standard}}, 1 px); thumbnail/image replaced by a {{repeat}} icon in {{icon.interactive}}; label forced to "Switch"; subtext, status icon, and remove-menu all hidden.
- -- Loading: thumbnail/image slot replaced by an indeterminate {{DSProgressCircle.medium()}}; all other content (name/subtext/status/remove-menu) renders as in the card's non-drag state.
-
- - *A11y:*
- -- No explicit {{Semantics}} wrapping is applied at the {{CatalogCard}} root to announce role/selected-state to assistive tech (e.g. {{button}}/{{selected}} semantics) — *not confirmed with QA whether {{FocusableActionDetector}}'s own default semantics are sufficient.*
- -- Compact tap target is the full 288×96 px card, well above the 44×44 px platform minimum; the overflow-menu icon button is a standard DS tap target ({{DSActionsButton}} contract, not re-specified here).
- -- Colour contrast for {{text.disabled}}/{{icon.disabled}} on {{surface.standard}}, and for the dashed border colours on their respective backgrounds, is asserted by the Figma source but not independently re-verified here.
+ -- Drag source: {{surface.subdued}} background, transparent base border with a 2 px dashed {{border.standard}} overlay; image area empty (expanded) or an {{archUpper}} icon in {{icon.disabled}} (compact); text {{{}text.disabled{}}}; status icon and remove-menu both hidden; *dashed-border layout is now always {{Positioned.fill}} (unconditional) — a {{{}dragHasTarget{}}}-driven inset/extended-border toggle that previously existed was removed same-day on explicit user feedback that the placeholder should look identical regardless of whether another card is currently a valid drop target elsewhere in the list.*
+ -- Drag target: {{surface.dropzone}} background, transparent base border with a {{2 px}} dashed {{border.interactive}} overlay (now always {{{}border.width.dropzone{}}}, 2 px, regardless of {{selected}} — a same-day fix; previously the non-selected/compact target used {{{}border.width.standard{}}}, 1 px); thumbnail/image replaced by a {{repeat}} icon in {{{}icon.interactive{}}}; label forced to "Switch"; subtext, status icon, and remove-menu all hidden.
+ -- Loading: thumbnail/image slot replaced by an indeterminate {{{}DSProgressCircle.medium(){}}}; all other content (name/subtext/status/remove-menu) renders as in the card's non-drag state.
 
  - *Visual Fidelity:*
  -- *Root / card surface:*
- --- Sizing: fixed 288 px wide; compact height 96 px (max-height enforced); expanded height variable ({{288:162}} image + content).
- --- Background: {{var(--surface/standard, #ffffff)}} default/focus/disabled; {{var(--surface/hovered, #ebebeb)}} hover; {{var(--surface/pressed, #d7d7d7)}} pressed; {{var(--surface/subdued, #f5f5f5)}} drag-source; {{var(--surface/dropzone, #d1e1ff7a)}} drag-target.
+ --- Sizing: fixed 288 px wide; compact height 96 px (max-height enforced); expanded height variable ({{{}288:162{}}} image + content).
+ --- Background: {{var(-{-}surface/standard, #ffffff){-}}} default/focus/disabled; {{var({-}surface/hovered, #ebebeb){-}}} hover; {{var({-}surface/pressed, #d7d7d7){-}}} pressed; {{var({-}surface/subdued, #f5f5f5){-}}} drag-source; {{var(-surface/dropzone, #d1e1ff7a)}} drag-target.
  --- Border-radius: {{var(--border/radius/standard, #12px)}} = 12 px, all states.
- --- Border (compact, not selected/focused/dragging): {{var(--border/width/standard, 1px)}} {{var(--border/subdued, #ebebeb)}}.
- --- Border (focused): {{var(--border/width/focus, 2px)}} {{var(--border/focused, #71a2fe)}}.
- --- Border (selected overlay): {{var(--border/width/selection, 2px)}} {{var(--border/interactive-hovered, #014bd5)}}.
- --- Border (drag-source overlay): {{2px}} dashed {{var(--border/standard, #d7d7d7)}}.
- --- Border (drag-target overlay): {{var(--border/width/dropzone, 2px)}} dashed {{var(--border/interactive, #0f62fe)}}.
+ --- Border (compact, not selected/focused/dragging): {{var(-{-}border/width/standard, 1px){-}}} {{{}var(-border/subdued, #ebebeb){}}}.
+ --- Border (focused): {{var(-{-}border/width/focus, 2px){-}}} {{{}var(-border/focused, #71a2fe){}}}.
+ --- Border (selected overlay): {{var(-{-}border/width/selection, 2px){-}}} {{{}var(-border/interactive-hovered, #014bd5){}}}.
+ --- Border (drag-source overlay): {{2px}} dashed {{{}var(--border/standard, #d7d7d7){}}}.
+ --- Border (drag-target overlay): {{var(-{-}border/width/dropzone, 2px){-}}} dashed {{{}var(-border/interactive, #0f62fe){}}}.
  -- *Compact thumbnail / expanded image:*
  --- Sizing: 64×64 px (compact) / full-width, {{288:162}} aspect ratio (expanded).
- --- Background: {{var(--background/standard, #f5f5f5)}}, {{BlendMode.multiply}}.
- --- Icon size/colour: 24 px (compact) / 48 px (expanded) {{DSIcons.archUpper}}, colour {{var(--icon/subdued, #575757)}} default or {{var(--icon/disabled, #8a8a8a)}} disabled.
- --- Disabled opacity (expanded, with scan model only): {{var(--opacities/disabled, 0.4)}}.
+ --- Background: {{{}var(--background/standard, #f5f5f5){}}}, {{{}BlendMode.multiply{}}}.
+ --- Icon size/colour: 24 px (compact) / 48 px (expanded) {{{}DSIcons.archUpper{}}}, colour {{var(-{-}icon/subdued, #575757){-}}} default or {{var(-icon/disabled, #8a8a8a)}} disabled.
+ --- Disabled opacity (expanded, with scan model only): {{{}var(--opacities/disabled, 0.4){}}}.
  -- *Label row:*
- --- Padding: {{var(--spacing/layout/s, 16px)}} all sides (compact); {{var(--spacing/component/m, 16px)}} all sides (expanded).
+ --- Padding: {{var(-{-}spacing/layout/s, 16px){-}}} all sides (compact); {{var(-spacing/component/m, 16px)}} all sides (expanded).
  --- Gap image↔text: {{var(--spacing/component/s, 12px)}} (compact, per {{ComponentSpacing}} scale S in Figma).
- --- Gap text↔status icon: {{var(--spacing/component/xxs, 4px)}}.
- --- Name: {{textBase}} (16 px / 24 px lh / −0.4 ls), colour {{var(--text/standard, #242424)}} default, {{var(--text/disabled, #8a8a8a)}} disabled/drag-source, {{var(--text/interactive, #014bd5)}} drag-target ("Switch").
- --- Subtext: {{textSm}} (14 px / 20 px lh / −0.35 ls), colour {{var(--text/subdued, #575757)}} default, {{var(--text/disabled, #8a8a8a)}} disabled/drag-source.
- -- *Status icon:* 24 px {{DSIcons.checkCircleFilled}}, colour {{var(--icon/success, #2f8e5b)}} default, {{var(--icon/disabled, #8a8a8a)}} disabled; padding {{var(--spacing/component/xs, 8px)}} all sides.
-
+ --- Gap text↔status icon: {{{}var(--spacing/component/xxs, 4px){}}}.
+ --- Name: {{textBase}} (16 px / 24 px lh / −0.4 ls), colour {{var(-{-}text/standard, #242424){-}}} default, {{var({-}text/disabled, #8a8a8a){-}}} disabled/drag-source, {{var(-text/interactive, #014bd5)}} drag-target ("Switch").
+ --- Subtext: {{textSm}} (14 px / 20 px lh / −0.35 ls), colour {{var(-{-}text/subdued, #575757){-}}} default, {{var(-text/disabled, #8a8a8a)}} disabled/drag-source.
+ -- *Status icon:* 24 px {{{}DSIcons.checkCircleFilled{}}}, colour {{var(-{-}icon/success, #2f8e5b){-}}} default, {{var({-}icon/disabled, #8a8a8a){-}}} disabled; padding {{var(-spacing/component/xs, 8px)}} all sides.
 
 h2. Content Logic & Edge Cases
-
-- *Long name/subtext:* both truncate to a single line with an ellipsis (confirmed against the Figma "Text overflow" anatomy examples, e.g. node 4304:14419) — no wrapping, no tooltip-on-truncate.
-- *Text column height stability:* the name/subtext block uses an invisible height-reserving {{Column}} (both lines, {{Opacity: 0.0}}) underneath the real, positioned content, so the visible name centers vertically in a fixed-height block whether or not {{subtext}}/{{showSubtext}} is actually rendered — prevents row height from jumping based on subtext visibility.
-- *{{scanModel: true}} with {{scanModelImage: null}}:* falls back to the plain arch-upper icon placeholder in both layouts — {{scanModel}} alone does not guarantee a real image renders.
-- *Mutually exclusive drag flags:* {{isDragSource}}, {{isDragTarget}}, and {{isLoading}} are not mutually exclusive by type (all are independent {{bool}}s), but the owning {{CatalogList}} only ever sets one of {{isDragSource}}/{{isDragTarget}} at a time per card, and only sets {{isLoading}} after both drag flags have cleared — *this contract is enforced by the caller, not by {{CatalogCard}} itself; passing an unexpected combination (e.g. {{isDragSource: true}} and {{isLoading: true}} simultaneously) is undefined visually since {{_compactImage}}/{{_expandedImage}} check {{isLoading}} first, then {{isDragTarget}}, then {{isDragSource}} in that priority order.*
-- *Status icon suppressed on all drag-related states, overriding raw Figma:* the Figma "Moving ..." floating-copy node (4750:15752) itself shows the status icon with {{status: true}}, but the user has explicitly decided the green status checkmark must never appear on any drag-related visual anywhere in the list (source, target, or the floating copy owned by {{CatalogList}}) — treat this as a standing rule over the raw Figma export if the two ever conflict again.
-- *Disabled cards are never draggable:* enforced by the caller ({{CatalogList}} passes {{null}} for {{onLongPressStart}} when an item is {{disabled}}), not by {{CatalogCard}} itself — {{CatalogCard}} has no awareness of drag gestures at all.
-- *Remove action is destructive-styled but not confirmed with a dialog:* {{DSAction(destructive: true)}} only affects the menu item's visual styling (per the DS {{DSActionsButton}} contract); triggering it calls {{onRemovePressed}} immediately with no intermediate confirmation step inside this component — *if a confirmation step is required by product, it must be added by the caller around {{onRemovePressed}}.*
-- *Same-day Figma drag-and-drop reconciliation (2026-09-15, not yet committed):* summarized in Acceptance Criteria/States above — placeholder text always disabled-styled regardless of selection, placeholder's remove-button/status-icon suppressed, drop-target border width unified to {{dropzone}} (2 px) regardless of selection, and the {{dragHasTarget}}-driven placeholder border-shape toggle removed entirely.
-
+ - *Long name/subtext:* both truncate to a single line with an ellipsis (confirmed against the Figma "Text overflow" anatomy examples, e.g. node 4304:14419) — no wrapping, no tooltip-on-truncate.
+ - *Text column height stability:* the name/subtext block uses an invisible height-reserving {{Column}} (both lines, {{{}Opacity: 0.0{}}}) underneath the real, positioned content, so the visible name centers vertically in a fixed-height block whether or not {{{}subtext{}}}/{{{}showSubtext{}}} is actually rendered — prevents row height from jumping based on subtext visibility.
+ - *{{scanModel: true}} with {{{}scanModelImage: null{}}}:* falls back to the plain icon placeholder in both layouts.
+ - *Mutually exclusive drag flags:* {{{}isDragSource{}}}, {{{}isDragTarget{}}}, and {{isLoading}} are not mutually exclusive by type (all are independent {{bool}}s), but the owning {{CatalogList}} only ever sets one of {{{}isDragSource{}}}/{{{}isDragTarget{}}} at a time per card, and only sets {{isLoading}} after both drag flags have cleared — *this contract is enforced by the caller, not by {{CatalogCard}} itself; passing an unexpected combination (e.g. {{isDragSource: true}} and {{isLoading: true}} simultaneously) is undefined visually since {{{}_compactImage{}}}/{{{}_expandedImage{}}} check {{isLoading}} first, then {{{}isDragTarget{}}}, then {{isDragSource}} in that priority order.*
+ - *Status icon suppressed on all drag-related states, overriding raw Figma:* the Figma "Moving ..." floating-copy node (4750:15752) itself shows the status icon with {{{}status: true{}}}, but the user has explicitly decided the green status checkmark must never appear on any drag-related visual anywhere in the list (source, target, or the floating copy owned by {{{}CatalogList{}}}) — treat this as a standing rule over the raw Figma export if the two ever conflict again.
+ - *Disabled cards are never draggable:* enforced by the caller ({{{}CatalogList{}}} passes {{null}} for {{onLongPressStart}} when an item is {{{}disabled{}}}), not by {{CatalogCard}} itself — {{CatalogCard}} has no awareness of drag gestures at all.
+ - *Remove action is destructive-styled but not confirmed with a dialog:* {{DSAction(destructive: true)}} only affects the menu item's visual styling (per the DS {{DSActionsButton}} contract); triggering it calls {{onRemovePressed}} immediately with no intermediate confirmation step inside this component — *if a confirmation step is required by product, it must be added by the caller around {{{}onRemovePressed{}}}.*
+ - *Same-day Figma drag-and-drop reconciliation (2026-09-15, not yet committed):* summarized in Acceptance Criteria/States above — placeholder text always disabled-styled regardless of selection, placeholder's remove-button/status-icon suppressed, drop-target border width unified to {{dropzone}} (2 px) regardless of selection, and the {{{}dragHasTarget{}}}-driven placeholder border-shape toggle removed entirely.
 
 h2. Responsiveness & Links
-
-- {{CatalogCard}} is a fixed 288 px wide in both layouts; it defines no responsive breakpoints and does not reflow with its container.
-- Figma: [Catalog card|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=2004-354]
-- Figma Behavior: [.Catalog card drag|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=4750-15310]
-- Storybook: [Progress indicator|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Progress%20indicator]
-- Storybook: [Icon|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Icon]
-- Storybook: [Actions button|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Actions%20button]
-- Related: [CatalogList|../catalog_list/catalog_list.txt] — the sole caller/orchestrator of {{isDragSource}}/{{isDragTarget}}/{{isLoading}} on this component.
-
+ - {{CatalogCard}} is a fixed 288 px wide in both layouts; it defines no responsive breakpoints and does not reflow with its container.
+ - Figma: [Catalog card|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=2004-354]
+ - Storybook: [Progress indicator|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Progress%20indicator]
+ - Storybook: [Icon|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Icon]
+ - Storybook: [Actions button|https://storybook-coreui-d2-euw3.d.dscore.com/#/Components/Actions%20button]
+ - Related: [CatalogList|../catalog_list/catalog_list.txt] — the sole caller/orchestrator of {{{}isDragSource{}}}/{{{}isDragTarget{}}}/{{{}isLoading{}}} on this component.
 
 h2. Approvals
-
 ||Team involved||Responsible||Status||
-|Design|[~Thomas.Jakob@dentsplysirona.com] | |
-|Product Management|[] | |
-|Product Owner|[] | |
-| | | |
+|Design|[~Thomas.Jakob@dentsplysirona.com]| |
+|Product Management| | |
+|Product Owner| | |
+| | | |

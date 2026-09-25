@@ -65,6 +65,17 @@ class WorkflowAssistant extends StatelessWidget {
   /// window.
   static const _padding = 24.0;
 
+  /// Absolute position of the close button over the card, taken from the
+  /// Figma "WorkflowAssistant" frame (node 4327:14315): `top: 20px`,
+  /// `right: 21px`. These are literal (unbound) offsets in Figma, not tokens.
+  static const _closeButtonTop = 20.0;
+  static const _closeButtonRight = 21.0;
+
+  /// Height-change animation. No DS animation token matches 380 ms, so it is
+  /// kept as a named constant — the same value and curve as `CatalogCard`'s
+  /// compact ↔ expanded resize (see `catalog_card.dart`).
+  static const _resizeDuration = Duration(milliseconds: 380);
+
   /// The title wraps across up to this many lines before truncating with
   /// an ellipsis.
   static const _titleMaxLines = 3;
@@ -132,15 +143,18 @@ class WorkflowAssistant extends StatelessWidget {
               boxShadow: tokens.shadows.elevation3,
             ),
             child: AnimatedSize(
-              duration: const Duration(milliseconds: 380),
+              duration: _resizeDuration,
               curve: Curves.easeOutQuint,
               alignment: Alignment.topCenter,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
+                // Slot gaps use the fixed component.* scale (16/8/24 px), not
+                // layout.*: layout.s/m shrink to 12/16 px below an 840 px
+                // window width, while this card's size and padding stay fixed.
                 children: [
                   _Indicator(variant: variant),
-                  SizedBox(height: tokens.spacing.layout.s),
+                  SizedBox(height: tokens.spacing.component.m),
                   Text(
                     title,
                     maxLines: _titleMaxLines,
@@ -148,22 +162,22 @@ class WorkflowAssistant extends StatelessWidget {
                     style: tokens.text.heading2xl.copyWith(color: tokens.text.standard),
                   ),
                   if (description != null) ...[
-                    SizedBox(height: tokens.spacing.layout.xs),
+                    SizedBox(height: tokens.spacing.component.xs),
                     Text(
                       description,
                       style: tokens.text.textLg.copyWith(color: tokens.text.standard),
                     ),
                   ],
                   if (media != null) ...[
-                    SizedBox(height: tokens.spacing.layout.s),
+                    SizedBox(height: tokens.spacing.component.m),
                     _MediaFrame(child: media),
                   ],
                   if (bullets.isNotEmpty) ...[
-                    SizedBox(height: tokens.spacing.layout.s),
+                    SizedBox(height: tokens.spacing.component.m),
                     _BulletList(bullets: bullets),
                   ],
                   if (switchLabel != null) ...[
-                    SizedBox(height: tokens.spacing.layout.m),
+                    SizedBox(height: tokens.spacing.component.l),
                     DSSwitch(
                       label: switchLabel,
                       value: switchValue,
@@ -171,7 +185,7 @@ class WorkflowAssistant extends StatelessWidget {
                     ),
                   ],
                   if (buttonLabel != null) ...[
-                    SizedBox(height: tokens.spacing.layout.m),
+                    SizedBox(height: tokens.spacing.component.l),
                     DSButton.secondary(
                       buttonText: buttonLabel,
                       onPressed: onButtonPressed,
@@ -183,8 +197,8 @@ class WorkflowAssistant extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 20,
-            right: 21,
+            top: _closeButtonTop,
+            right: _closeButtonRight,
             child: DSButton.windowControlClose(onPressed: onClose),
           ),
         ],
@@ -249,7 +263,7 @@ class _Indicator extends StatelessWidget {
 class _MediaFrame extends StatelessWidget {
   const _MediaFrame({required this.child});
 
-  final Widget? child;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {

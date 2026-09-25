@@ -239,10 +239,11 @@ class _ToolbarPill extends StatelessWidget {
 /// A plain, single-action icon-only button inside a toolbar pill.
 ///
 /// This DS version has no dedicated `DSIconButton`, so this follows the exact
-/// pattern already used for the Settings anchor button in `header_menus.dart`:
-/// a [DSCrudeButton] with the tertiary theme (transparent at rest, with the
-/// standard DS hover/pressed backgrounds) wrapping a medium [DSIcon] padded by
-/// `spacing/component/xs`, all inside a [_ToolbarTooltip]. That yields the 8 px
+/// pattern already used for the Settings anchor button in
+/// `header_menu_settings.dart`: a [DSCrudeButton] with the tertiary theme
+/// (transparent at rest, with the standard DS hover/pressed backgrounds)
+/// wrapping a medium [DSIcon] padded by `spacing/component/xs`, all inside a
+/// [_ToolbarTooltip]. That yields the 8 px
 /// padding around a 24 px icon — a 40x40 px tap target — that the design
 /// definition specifies, and it matches the intrinsic size of the neighbouring
 /// [DSToggleButton]s so the pill's dividers line up with them.

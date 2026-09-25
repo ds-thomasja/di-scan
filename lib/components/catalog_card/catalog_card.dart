@@ -85,22 +85,45 @@ class CatalogCard extends StatefulWidget {
 }
 
 class _CatalogCardState extends State<CatalogCard> {
+  /// Fixed card width, both layouts (Figma frame width).
+  static const _cardWidth = 288.0;
+
+  /// Compact thumbnail edge length.
+  static const _thumbSize = 64.0;
+
+  /// Expanded image aspect ratio (Figma: 288×162).
+  static const _imageAspect = 288 / 162;
+
+  /// Press-in duration of the whole-card scale feedback.
+  static const _pressDuration = Duration(milliseconds: 80);
+
+  /// Background colour cross-fade between interaction states.
+  static const _backgroundDuration = Duration(milliseconds: 200);
+
+  /// Compact ↔ expanded resize. No DS animation token matches 380 ms, so it
+  /// is kept as a named constant; `WorkflowAssistant` uses the same value
+  /// and curve for its own resize (see `workflow_assistant.dart`).
+  static const _resizeDuration = Duration(milliseconds: 380);
+
   late bool _selected;
   bool _isHovered = false;
   bool _isPressed = false;
   bool _isFocused = false;
+
+  /// Mouse is over the ⋮ actions button: suppresses the card's hover/press
+  /// visuals while pointing at the button.
   bool _isButtonHovered = false;
 
-  late final FocusNode _focusNode;
+  /// A pointer (touch, mouse or stylus) is currently down on the ⋮ actions
+  /// button. Needed because touch has no hover: without it, holding a finger
+  /// on the button would still trigger the card's press scale. A plain field
+  /// (no rebuild needed) — it is only read in [_handleTapDown].
+  bool _pointerDownOnButton = false;
 
   @override
   void initState() {
     super.initState();
     _selected = widget.selected;
-    _focusNode = FocusNode()
-      ..addListener(() {
-        setState(() => _isFocused = _focusNode.hasFocus);
-      });
   }
 
   @override
@@ -111,12 +134,6 @@ class _CatalogCardState extends State<CatalogCard> {
     }
   }
 
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
   void _handleTap() {
     if (widget.disabled) return;
     widget.onTap?.call();
@@ -125,38 +142,61 @@ class _CatalogCardState extends State<CatalogCard> {
     widget.onSelectedChanged?.call(next);
   }
 
+  void _handleTapDown(TapDownDetails _) {
+    if (_pointerDownOnButton || _isButtonHovered) return;
+    setState(() => _isPressed = true);
+  }
+
+  bool get _pressFeedback => _isPressed && !_isButtonHovered;
+
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
     return SizedBox(
-      width: 288,
-      child: FocusableActionDetector(
-        focusNode: _focusNode,
+      width: _cardWidth,
+      // Semantics: announced as a (toggle-like) button whose selected state
+      // mirrors the expanded layout. The ⋮ actions button keeps its own node.
+      child: Semantics(
+        container: true,
+        button: true,
+        selected: _selected,
         enabled: !widget.disabled,
-        onShowHoverHighlight: (v) => setState(() => _isHovered = v),
-        onShowFocusHighlight: (v) => setState(() => _isFocused = v),
-        child: GestureDetector(
-          onTap: _handleTap,
-          onTapDown: widget.disabled ? null : (_) => setState(() { if (!_isButtonHovered) _isPressed = true; }),
-          onTapUp: widget.disabled ? null : (_) => setState(() => _isPressed = false),
-          onTapCancel: widget.disabled ? null : () => setState(() => _isPressed = false),
-          child: AnimatedScale(
-            scale: (_isPressed && !_isButtonHovered) ? 0.97 : 1.0,
-            duration: (_isPressed && !_isButtonHovered)
-                ? const Duration(milliseconds: 80)
-                : const Duration(milliseconds: 300),
-            curve: (_isPressed && !_isButtonHovered)
-                ? Curves.easeInCubic
-                : Curves.easeOut,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _buildCard(tokens),
-                if (_selected && !widget.isDragSource && !widget.isDragTarget)
-                  _buildSelectionOverlay(tokens),
-                if (widget.isDragSource) _buildDragSourceOverlay(tokens),
-                if (widget.isDragTarget) _buildDragTargetOverlay(tokens),
-              ],
+        child: FocusableActionDetector(
+          enabled: !widget.disabled,
+          // Enter/Space activate the focused card like a tap. Default
+          // shortcuts map Enter/Space to ActivateIntent on native and to
+          // ButtonActivateIntent (Enter) on web, so handle both.
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) => _handleTap(),
+            ),
+            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+              onInvoke: (_) => _handleTap(),
+            ),
+          },
+          onShowHoverHighlight: (v) => setState(() => _isHovered = v),
+          onShowFocusHighlight: (v) => setState(() => _isFocused = v),
+          child: GestureDetector(
+            onTap: _handleTap,
+            onTapDown: widget.disabled ? null : _handleTapDown,
+            onTapUp: widget.disabled ? null : (_) => setState(() => _isPressed = false),
+            onTapCancel: widget.disabled ? null : () => setState(() => _isPressed = false),
+            child: AnimatedScale(
+              scale: _pressFeedback ? 0.97 : 1.0,
+              duration: _pressFeedback
+                  ? _pressDuration
+                  : tokens.animation.duration.macroForward,
+              curve: _pressFeedback ? Curves.easeInCubic : Curves.easeOut,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildCard(tokens),
+                  if (_selected && !widget.isDragSource && !widget.isDragTarget)
+                    _buildSelectionOverlay(tokens),
+                  if (widget.isDragSource) _buildDragSourceOverlay(tokens),
+                  if (widget.isDragTarget) _buildDragTargetOverlay(tokens),
+                ],
+              ),
             ),
           ),
         ),
@@ -165,13 +205,13 @@ class _CatalogCardState extends State<CatalogCard> {
   }
 
   Color _backgroundColor(DSTokensData tokens) {
-    if (widget.disabled) return tokens.surface.standard;
-    if (widget.isLoading) return tokens.surface.standard;
+    // Disabled and loading suppress all interaction feedback.
+    if (widget.disabled || widget.isLoading) return tokens.surface.standard;
     if (widget.isDragSource) return tokens.surface.subdued;
     if (widget.isDragTarget) return tokens.surface.dropzone;
-    if (_isPressed && !_isButtonHovered) return tokens.surface.pressed;
-    if (_isFocused) return tokens.surface.standard;
-    if (_isHovered && !_isButtonHovered) return tokens.surface.hovered;
+    if (_pressFeedback) return tokens.surface.pressed;
+    // Focus keeps the standard surface (the focus border is the feedback).
+    if (_isHovered && !_isButtonHovered && !_isFocused) return tokens.surface.hovered;
     return tokens.surface.standard;
   }
 
@@ -192,14 +232,14 @@ class _CatalogCardState extends State<CatalogCard> {
     return ClipRRect(
       borderRadius: radius,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: _backgroundDuration,
         curve: Curves.easeOut,
         color: _backgroundColor(tokens),
         child: DecoratedBox(
           decoration: BoxDecoration(border: _border(tokens), borderRadius: radius),
           position: DecorationPosition.foreground,
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 380),
+            duration: _resizeDuration,
             curve: Curves.easeOutQuint,
             alignment: Alignment.topCenter,
             child: _selected
@@ -257,11 +297,19 @@ class _CatalogCardState extends State<CatalogCard> {
   // ── Compact layout (not selected) ───────────────────────────────────────────
 
   Widget _buildCompactContent(DSTokensData tokens) {
+    // component.m (16 px), not layout.s: layout.* shrinks to 12 px below an
+    // 840 px window width, which would make this fixed 288×96 card 88 px high.
     return Padding(
-      padding: EdgeInsets.all(tokens.spacing.layout.s),
+      padding: EdgeInsets.all(tokens.spacing.component.m),
       child: Row(
         children: [
-          _compactImage(tokens),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(tokens.border.radius.standard),
+            child: SizedBox.square(
+              dimension: _thumbSize,
+              child: _imageContent(tokens, large: false),
+            ),
+          ),
           SizedBox(width: tokens.spacing.component.s),
           Expanded(child: _textColumn(tokens)),
           if (widget.showStatus && !widget.isDragTarget && !widget.isDragSource) ...[
@@ -273,69 +321,6 @@ class _CatalogCardState extends State<CatalogCard> {
     );
   }
 
-  Widget _compactImage(DSTokensData tokens) {
-    final radius = BorderRadius.circular(tokens.border.radius.standard);
-    if (widget.isLoading) {
-      return const SizedBox(
-        width: 64,
-        height: 64,
-        child: Center(child: DSProgressCircle.medium()),
-      );
-    }
-    if (widget.isDragTarget) {
-      return SizedBox(
-        width: 64,
-        height: 64,
-        child: Center(
-          child: DSIcon.medium(
-            iconRef: DSIcons.repeat,
-            color: tokens.icon.interactive,
-          ),
-        ),
-      );
-    }
-    if (widget.isDragSource) {
-      return SizedBox(
-        width: 64,
-        height: 64,
-        child: Center(
-          child: DSIcon.medium(
-            iconRef: DSIcons.archUpper,
-            color: tokens.icon.disabled,
-          ),
-        ),
-      );
-    }
-    if (widget.scanModel && widget.scanModelImage != null) {
-      return Opacity(
-        opacity: widget.disabled ? tokens.opacities.disabled : 1.0,
-        child: ClipRRect(
-          borderRadius: radius,
-          child: SizedBox(
-            width: 64,
-            height: 64,
-            child: _MultiplyLayer(child: widget.scanModelImage!),
-          ),
-        ),
-      );
-    }
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: tokens.background.standard,
-        backgroundBlendMode: BlendMode.multiply,
-        borderRadius: radius,
-      ),
-      child: Center(
-        child: DSIcon.medium(
-          iconRef: DSIcons.archUpper,
-          color: widget.disabled ? tokens.icon.disabled : tokens.icon.subdued,
-        ),
-      ),
-    );
-  }
-
   // ── Expanded layout (selected) ───────────────────────────────────────────────
 
   Widget _buildExpandedContent(DSTokensData tokens) {
@@ -343,7 +328,15 @@ class _CatalogCardState extends State<CatalogCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _expandedImage(tokens),
+        AspectRatio(
+          aspectRatio: _imageAspect,
+          child: ClipRRect(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(tokens.border.radius.standard),
+            ),
+            child: _imageContent(tokens, large: true),
+          ),
+        ),
         Padding(
           padding: EdgeInsets.all(tokens.spacing.component.m),
           child: Row(
@@ -354,24 +347,7 @@ class _CatalogCardState extends State<CatalogCard> {
                 _statusIcon(tokens),
               ],
               if (widget.onRemovePressed != null && !widget.isDragSource)
-                MouseRegion(
-                  onEnter: (_) => setState(() => _isButtonHovered = true),
-                  onExit: (_) => setState(() => _isButtonHovered = false),
-                  child: DSActionsButton.iconTertiary(
-                    icon: DSIcons.dotsVertical,
-                    enabled: !widget.disabled,
-                    actions: [
-                      [
-                        DSAction(
-                          title: 'Remove catalog',
-                          icon: DSIcons.removeCircle,
-                          destructive: true,
-                          onTrigger: widget.onRemovePressed,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                _actionsButton(),
             ],
           ),
         ),
@@ -379,66 +355,82 @@ class _CatalogCardState extends State<CatalogCard> {
     );
   }
 
-  Widget _expandedImage(DSTokensData tokens) {
-    final topRadius = BorderRadius.vertical(
-      top: Radius.circular(tokens.border.radius.standard),
-    );
-    if (widget.isLoading) {
-      return AspectRatio(
-        aspectRatio: 288 / 162,
-        child: ClipRRect(
-          borderRadius: topRadius,
-          child: const Center(child: DSProgressCircle.medium()),
+  /// The ⋮ overflow menu. [MouseRegion] keeps the mouse-only hover guard;
+  /// [Listener] adds a pointer-down guard that also covers touch (see
+  /// [_pointerDownOnButton]). The button's own tap recognizer wins the
+  /// gesture arena, so a tap on it never reaches the card's `onTap`.
+  Widget _actionsButton() {
+    return Listener(
+      onPointerDown: (_) => _pointerDownOnButton = true,
+      onPointerUp: (_) => _pointerDownOnButton = false,
+      onPointerCancel: (_) => _pointerDownOnButton = false,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isButtonHovered = true),
+        onExit: (_) => setState(() => _isButtonHovered = false),
+        child: DSActionsButton.iconTertiary(
+          icon: DSIcons.dotsVertical,
+          enabled: !widget.disabled,
+          actions: [
+            [
+              DSAction(
+                title: 'Remove catalog',
+                icon: DSIcons.removeCircle,
+                destructive: true,
+                onTrigger: widget.onRemovePressed,
+              ),
+            ],
+          ],
         ),
-      );
+      ),
+    );
+  }
+
+  /// The image slot's content, shared by both layouts. The caller provides
+  /// the wrapper: a fixed rounded square (compact) or a top-rounded
+  /// [AspectRatio] (expanded). Priority: loading → drag target → drag source
+  /// → scan image → arch placeholder.
+  Widget _imageContent(DSTokensData tokens, {required bool large}) {
+    final iconSize = large ? tokens.icon.size.l : tokens.icon.size.m;
+    if (widget.isLoading) {
+      return const Center(child: DSProgressCircle.medium());
     }
     if (widget.isDragTarget) {
-      return AspectRatio(
-        aspectRatio: 288 / 162,
-        child: ClipRRect(
-          borderRadius: topRadius,
-          child: Center(
-            child: DSIcon.large(
-              iconRef: DSIcons.repeat,
-              color: tokens.icon.interactive,
-            ),
-          ),
+      return Center(
+        child: DSIcon(
+          iconRef: DSIcons.repeat,
+          iconSize: iconSize,
+          color: tokens.icon.interactive,
         ),
       );
     }
     if (widget.isDragSource) {
-      // Empty transparent area — no icon, no background.
-      return const AspectRatio(aspectRatio: 288 / 162);
-    }
-    if (widget.scanModel && widget.scanModelImage != null) {
-      return Opacity(
-        opacity: widget.disabled ? tokens.opacities.disabled : 1.0,
-        child: AspectRatio(
-          aspectRatio: 288 / 162,
-          child: ClipRRect(
-            borderRadius: topRadius,
-            child: _MultiplyLayer(
-              child: widget.scanModelImage!,
-            ),
-          ),
+      // Expanded: empty transparent area — no icon, no background.
+      if (large) return const SizedBox.shrink();
+      return Center(
+        child: DSIcon(
+          iconRef: DSIcons.archUpper,
+          iconSize: iconSize,
+          color: tokens.icon.disabled,
         ),
       );
     }
-    return AspectRatio(
-      aspectRatio: 288 / 162,
-      child: ClipRRect(
-        borderRadius: topRadius,
-        child: Container(
-          decoration: BoxDecoration(
-            color: tokens.background.standard,
-            backgroundBlendMode: BlendMode.multiply,
-          ),
-          child: Center(
-            child: DSIcon.large(
-              iconRef: DSIcons.archUpper,
-              color: widget.disabled ? tokens.icon.disabled : tokens.icon.subdued,
-            ),
-          ),
+    final scanModelImage = widget.scanModelImage;
+    if (widget.scanModel && scanModelImage != null) {
+      return Opacity(
+        opacity: widget.disabled ? tokens.opacities.disabled : 1.0,
+        child: _MultiplyLayer(child: scanModelImage),
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.background.standard,
+        backgroundBlendMode: BlendMode.multiply,
+      ),
+      child: Center(
+        child: DSIcon(
+          iconRef: DSIcons.archUpper,
+          iconSize: iconSize,
+          color: widget.disabled ? tokens.icon.disabled : tokens.icon.subdued,
         ),
       ),
     );
@@ -447,23 +439,16 @@ class _CatalogCardState extends State<CatalogCard> {
   // ── Shared sub-widgets ───────────────────────────────────────────────────────
 
   Widget _textColumn(DSTokensData tokens) {
-    final String displayName;
-    final Color nameColor;
-    final Color subtextColor;
-
-    if (widget.isDragTarget) {
-      displayName = 'Switch';
-      nameColor = tokens.text.interactive;
-      subtextColor = tokens.text.subdued; // unused — subtext hidden for target
-    } else if (widget.isDragSource) {
-      displayName = widget.name;
-      nameColor = tokens.text.disabled;
-      subtextColor = tokens.text.disabled;
-    } else {
-      displayName = widget.name;
-      nameColor = widget.disabled ? tokens.text.disabled : tokens.text.standard;
-      subtextColor = widget.disabled ? tokens.text.disabled : tokens.text.subdued;
-    }
+    // Drag source and disabled both render all text disabled-styled; the drag
+    // target shows a fixed interactive "Switch" label and hides the subtext.
+    final muted = widget.isDragSource || widget.disabled;
+    final displayName = widget.isDragTarget ? 'Switch' : widget.name;
+    final nameColor = widget.isDragTarget
+        ? tokens.text.interactive
+        : muted
+            ? tokens.text.disabled
+            : tokens.text.standard;
+    final subtextColor = muted ? tokens.text.disabled : tokens.text.subdued;
 
     final showSub = widget.showSubtext && !widget.isDragTarget;
 

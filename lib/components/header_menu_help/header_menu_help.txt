@@ -8,6 +8,7 @@ h2. Design Definition & Assets
 - Figma Link: [Header Menu Help|https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5620-29386]
 - Design Definition (Jira): [S3806-6114|https://jira.dentsplysirona.com/browse/S3806-6114] — status *Draft*.
 - Flutter Component: [header_menu_help.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/header_menu_help/header_menu_help.dart]
+- Handover (procedurecontroldi): [header_menu_help.dart|https://github.com/DS-DP-S/procedurecontroldi/blob/S3806-6115-header_menu_help/apps/di_design_system/header_menu_help/header_menu_help.dart] — pushed to branch {{S3806-6115-header_menu_help}} ({{S3806-6115}}); no PR opened yet, so this is not yet on {{main}} — re-verify once merged.
 - Interaction Model: The Help button is a question-mark ({{DSIcons.helpCircle}}) icon button in the header, built on {{DSActionsButton.iconTertiary}}. Tapping it opens a popup menu anchored to the button (preferred bottom-right, falling back to top-right if there is insufficient space below), listing three actions in a single section: "About DI Scan", "Give feedback", "Onboarding". Selecting an action closes the popup first, then invokes that action's callback ({{onAboutDiScan}} / {{onGiveFeedback}} / {{onOnboarding}}) — the component itself does not perform navigation or any side effect; the host app owns what each action actually does. The popup also closes on an outside tap. While the popup is open, the button shows a pressed/"open" look. The button carries a "Help" tooltip.
 
 

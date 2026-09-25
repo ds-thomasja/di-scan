@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:lightning_core_ui/lightning_core_ui.dart';
 
 /// Seat position options in the Settings menu's "View" section.
-enum SeatPosition { facingForLowerBehindForUpper, alwaysNextToOrFacing, alwaysBehind }
+enum SeatPosition {
+  facingForLowerBehindForUpper,
+  alwaysNextToOrFacing,
+  alwaysBehind,
+}
 
 /// The "Settings" header menu button — a sliders icon that opens a
 /// scanning-preferences panel.
@@ -17,11 +21,33 @@ enum SeatPosition { facingForLowerBehindForUpper, alwaysNextToOrFacing, alwaysBe
 /// its left.
 ///
 /// The panel's controls (render style, autorotation, sound, seat position,
-/// holes detection) keep local demo state seeded from the values shown in
-/// the Figma "Open=true" snapshot; they are not wired to real scanning
-/// behaviour.
+/// holes detection) keep demo state seeded from the values shown in the
+/// Figma "Open=true" snapshot; they are not wired to real scanning
+/// behaviour. That state is owned by this widget's [State] (not by the popup
+/// content), so values survive closing and reopening the panel for as long
+/// as [HeaderMenuSettings] stays mounted.
 class HeaderMenuSettings extends StatefulWidget {
-  const HeaderMenuSettings({super.key});
+  const HeaderMenuSettings({
+    super.key,
+    this.showRenderStyle = true,
+    this.showSound = true,
+    this.showView = true,
+    this.showHolesDetection = true,
+  });
+
+  /// Whether the "Render style" section renders in the panel. Figma's node
+  /// always shows all four sections; this only exists so the gallery
+  /// playground can preview the panel with sections hidden.
+  final bool showRenderStyle;
+
+  /// Whether the "Sound" section renders in the panel.
+  final bool showSound;
+
+  /// Whether the "View" section renders in the panel.
+  final bool showView;
+
+  /// Whether the "Holes detection" section renders in the panel.
+  final bool showHolesDetection;
 
   @override
   State<HeaderMenuSettings> createState() => _HeaderMenuSettingsState();
@@ -31,6 +57,16 @@ class _HeaderMenuSettingsState extends State<HeaderMenuSettings> {
   // Tracks whether the Settings popup is open, purely to drive the anchor
   // button's selected/pressed look (matches Figma's Open=true style).
   bool _settingsOpen = false;
+
+  // Lives here rather than in the popup content: the popup route's widgets
+  // are disposed on close, which previously reset every value on reopen.
+  final _values = _SettingsValues();
+
+  @override
+  void dispose() {
+    _values.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,37 +103,125 @@ class _HeaderMenuSettingsState extends State<HeaderMenuSettings> {
           ),
         );
       },
-      popupBuilder: (context, _, _, _) => const _SettingsPanel(),
+      popupBuilder: (context, _, _, _) => _SettingsPanel(
+        values: _values,
+        showRenderStyle: widget.showRenderStyle,
+        showSound: widget.showSound,
+        showView: widget.showView,
+        showHolesDetection: widget.showHolesDetection,
+      ),
     );
+  }
+}
+
+/// The panel's control values, owned by [_HeaderMenuSettingsState].
+///
+/// A [ChangeNotifier] rather than plain fields plus `setState`: the popup
+/// lives in its own route, which isn't guaranteed to rebuild when the anchor
+/// widget does, so the panel listens to this object directly.
+class _SettingsValues extends ChangeNotifier {
+  static const renderStyleOptions = ['White light (Default)'];
+  static const soundOptions = ['Pulse'];
+
+  String _renderStyle = renderStyleOptions.first;
+  bool _autorotation = true;
+  bool _feedbackActiveScanning = true;
+  String _sound = soundOptions.first;
+  double _soundVolume = 50;
+  SeatPosition _seatPosition = SeatPosition.facingForLowerBehindForUpper;
+  bool _highlightHoles = true;
+
+  String get renderStyle => _renderStyle;
+  set renderStyle(String value) => _update(() => _renderStyle = value);
+
+  bool get autorotation => _autorotation;
+  set autorotation(bool value) => _update(() => _autorotation = value);
+
+  bool get feedbackActiveScanning => _feedbackActiveScanning;
+  set feedbackActiveScanning(bool value) =>
+      _update(() => _feedbackActiveScanning = value);
+
+  String get sound => _sound;
+  set sound(String value) => _update(() => _sound = value);
+
+  double get soundVolume => _soundVolume;
+  set soundVolume(double value) => _update(() => _soundVolume = value);
+
+  SeatPosition get seatPosition => _seatPosition;
+  set seatPosition(SeatPosition value) => _update(() => _seatPosition = value);
+
+  bool get highlightHoles => _highlightHoles;
+  set highlightHoles(bool value) => _update(() => _highlightHoles = value);
+
+  void _update(VoidCallback change) {
+    change();
+    notifyListeners();
   }
 }
 
 /// The Settings menu's popup content: render style, autorotation, sound,
 /// seat position and holes-detection controls (Figma node 4806:27969).
-class _SettingsPanel extends StatefulWidget {
-  const _SettingsPanel();
+///
+/// Stateless: reads and writes [values], which outlives the popup.
+class _SettingsPanel extends StatelessWidget {
+  const _SettingsPanel({
+    required this.values,
+    required this.showRenderStyle,
+    required this.showSound,
+    required this.showView,
+    required this.showHolesDetection,
+  });
 
-  @override
-  State<_SettingsPanel> createState() => _SettingsPanelState();
-}
+  final _SettingsValues values;
+  final bool showRenderStyle;
+  final bool showSound;
+  final bool showView;
+  final bool showHolesDetection;
 
-class _SettingsPanelState extends State<_SettingsPanel> {
-  static const _renderStyleOptions = ['White light (Default)'];
-  static const _soundOptions = ['Pulse'];
-
-  String _renderStyle = _renderStyleOptions.first;
-  bool _autorotation = true;
-  bool _feedbackActiveScanning = true;
-  String _sound = _soundOptions.first;
-  double _soundVolume = 50;
-  SeatPosition _seatPosition = SeatPosition.facingForLowerBehindForUpper;
-  bool _highlightHoles = true;
+  /// Seat-position radio labels, in display order.
+  static const _seatPositionLabels = {
+    SeatPosition.facingForLowerBehindForUpper:
+        'Facing for lower, behind for upper',
+    SeatPosition.alwaysNextToOrFacing: 'Always next to or facing',
+    SeatPosition.alwaysBehind: 'Always behind',
+  };
 
   @override
   Widget build(BuildContext context) {
-    final tokens = DSTokens.of(context);
+    return ListenableBuilder(
+      listenable: values,
+      builder: (context, _) => _buildPanel(DSTokens.of(context)),
+    );
+  }
+
+  Widget _buildPanel(DSTokensData tokens) {
     final sectionGap = SizedBox(height: tokens.spacing.component.m);
     final itemGap = SizedBox(height: tokens.spacing.component.xs);
+
+    final sections = [
+      if (showRenderStyle) _renderStyleSection(tokens, itemGap),
+      if (showSound) _soundSection(tokens, itemGap, sectionGap),
+      if (showView) _viewSection(tokens, itemGap, sectionGap),
+      if (showHolesDetection) _holesDetectionSection(tokens, itemGap),
+    ];
+
+    // Figma's panel has an extra XS-scale spacer between the panel's own
+    // top padding and the first section, and an extra S-scale (component.m)
+    // spacer between the last section and the panel's bottom padding — on
+    // top of the panel's own symmetric component.xs padding below. That
+    // makes the panel 16px clear at the top (8 padding + 8 spacer) but 24px
+    // clear at the bottom (8 padding + 16 spacer), confirmed against the
+    // Figma node (5620:27629): not a symmetric inset.
+    final children = <Widget>[itemGap];
+    for (var i = 0; i < sections.length; i++) {
+      if (i > 0) {
+        children.add(sectionGap);
+        children.add(const DSDivider.horizontal());
+        children.add(sectionGap);
+      }
+      children.add(sections[i]);
+    }
+    children.add(sectionGap);
 
     // DSSlider and other Material-based DS controls need a Material
     // ancestor, which the popup route doesn't provide on its own — wrap the
@@ -118,99 +242,115 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _header(tokens, 'Render style'),
-            itemGap,
-            DSDropdown<String>(
-              items: _renderStyleOptions
-                  .map((option) => DSDropdownItem(title: option, value: option))
-                  .toList(),
-              value: _renderStyle,
-              onChanged: (value) => setState(() => _renderStyle = value ?? _renderStyle),
-              stretch: true,
-            ),
-            sectionGap,
-            DSSwitch(
-              label: 'Autotoration',
-              value: _autorotation,
-              onChanged: (value) => setState(() => _autorotation = value),
-            ),
-            sectionGap,
-            const DSDivider.horizontal(),
-            sectionGap,
-            _header(tokens, 'Sound'),
-            itemGap,
-            DSSwitch(
-              label: 'Feedback active scanning',
-              value: _feedbackActiveScanning,
-              onChanged: (value) => setState(() => _feedbackActiveScanning = value),
-            ),
-            sectionGap,
-            DSDropdown<String>(
-              items: _soundOptions
-                  .map((option) => DSDropdownItem(title: option, value: option))
-                  .toList(),
-              value: _sound,
-              onChanged: (value) => setState(() => _sound = value ?? _sound),
-              stretch: true,
-            ),
-            sectionGap,
-            DSSlider(
-              value: _soundVolume,
-              onChanged: (value) => setState(() => _soundVolume = value),
-              min: 0,
-              max: 100,
-              divisions: 10,
-              showMinMax: true,
-              showValueIndicator: DSSliderShowValueIndicator.never,
-            ),
-            sectionGap,
-            const DSDivider.horizontal(),
-            sectionGap,
-            _header(tokens, 'View'),
-            Text(
-              'Seat position relative to patient',
-              style: tokens.text.textBase.copyWith(color: tokens.text.standard),
-            ),
-            itemGap,
-            DSRadio<SeatPosition>(
-              value: SeatPosition.facingForLowerBehindForUpper,
-              groupValue: _seatPosition,
-              label: 'Facing for lower, behind for upper',
-              onChanged: (value) => setState(() => _seatPosition = value),
-            ),
-            itemGap,
-            DSRadio<SeatPosition>(
-              value: SeatPosition.alwaysNextToOrFacing,
-              groupValue: _seatPosition,
-              label: 'Always next to or facing',
-              onChanged: (value) => setState(() => _seatPosition = value),
-            ),
-            itemGap,
-            DSRadio<SeatPosition>(
-              value: SeatPosition.alwaysBehind,
-              groupValue: _seatPosition,
-              label: 'Always behind',
-              onChanged: (value) => setState(() => _seatPosition = value),
-            ),
-            sectionGap,
-            const DSDivider.horizontal(),
-            sectionGap,
-            _header(tokens, 'Holes detection'),
-            itemGap,
-            DSSwitch(
-              label: 'Highlight holes',
-              value: _highlightHoles,
-              onChanged: (value) => setState(() => _highlightHoles = value),
-            ),
-          ],
+          children: children,
         ),
       ),
     );
   }
 
+  Widget _renderStyleSection(DSTokensData tokens, Widget itemGap) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(tokens, 'Render style'),
+        itemGap,
+        DSDropdown<String>(
+          items: _SettingsValues.renderStyleOptions
+              .map((option) => DSDropdownItem(title: option, value: option))
+              .toList(),
+          value: values.renderStyle,
+          onChanged: (value) =>
+              values.renderStyle = value ?? values.renderStyle,
+          stretch: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _soundSection(DSTokensData tokens, Widget itemGap, Widget sectionGap) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(tokens, 'Sound'),
+        itemGap,
+        DSSwitch(
+          label: 'Feedback active scanning',
+          value: values.feedbackActiveScanning,
+          onChanged: (value) => values.feedbackActiveScanning = value,
+        ),
+        sectionGap,
+        DSDropdown<String>(
+          items: _SettingsValues.soundOptions
+              .map((option) => DSDropdownItem(title: option, value: option))
+              .toList(),
+          value: values.sound,
+          onChanged: (value) => values.sound = value ?? values.sound,
+          stretch: true,
+        ),
+        sectionGap,
+        DSSlider(
+          value: values.soundVolume,
+          onChanged: (value) => values.soundVolume = value,
+          min: 0,
+          max: 100,
+          showMinMax: true,
+          showValueIndicator: DSSliderShowValueIndicator.never,
+        ),
+      ],
+    );
+  }
+
+  Widget _viewSection(DSTokensData tokens, Widget itemGap, Widget sectionGap) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(tokens, 'View'),
+        itemGap,
+        DSSwitch(
+          label: 'Autorotation',
+          value: values.autorotation,
+          onChanged: (value) => values.autorotation = value,
+        ),
+        sectionGap,
+        Text(
+          'Seat position relative to patient',
+          style: tokens.text.textBase.copyWith(color: tokens.text.standard),
+        ),
+        for (final MapEntry(key: position, value: label)
+            in _seatPositionLabels.entries) ...[
+          itemGap,
+          DSRadio<SeatPosition>(
+            value: position,
+            groupValue: values.seatPosition,
+            label: label,
+            onChanged: (value) => values.seatPosition = value,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _holesDetectionSection(DSTokensData tokens, Widget itemGap) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(tokens, 'Holes detection'),
+        itemGap,
+        DSSwitch(
+          label: 'Highlight holes',
+          value: values.highlightHoles,
+          onChanged: (value) => values.highlightHoles = value,
+        ),
+      ],
+    );
+  }
+
   Widget _header(DSTokensData tokens, String text) => Text(
-        text,
-        style: tokens.text.textBaseStrong.copyWith(color: tokens.text.standard),
-      );
+    text,
+    style: tokens.text.textBaseStrong.copyWith(color: tokens.text.standard),
+  );
 }

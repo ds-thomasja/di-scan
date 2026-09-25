@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:lightning_core_ui/lightning_core_ui.dart';
 import '../catalog_card/catalog_card.dart';
@@ -32,16 +30,21 @@ class CatalogListItem {
 ///
 /// Long-pressing a card activates drag mode: a floating copy of the card
 /// (compact icon layout with elevation shadow) follows the pointer until
-/// the press is released.
+/// the press is released. Dropping onto another card calls
+/// [onSwitchRequested]; the list itself never mutates [items]. While the
+/// host performs the switch it can show spinners on the affected cards via
+/// [loadingIndices].
 class CatalogList extends StatefulWidget {
   const CatalogList({
     super.key,
     required this.items,
     this.selectedIndex,
     this.spacing = 12.0,
+    this.loadingIndices = const {},
     this.onSelectionChanged,
     this.onRemovePressed,
     this.onAddPressed,
+    this.onSwitchRequested,
   });
 
   final List<CatalogListItem> items;
@@ -51,6 +54,11 @@ class CatalogList extends StatefulWidget {
 
   /// Vertical gap between cards.
   final double spacing;
+
+  /// Indices of cards that show a loading spinner (e.g. while the host
+  /// performs a switch requested via [onSwitchRequested]). Host-owned; the
+  /// list never changes it. Loading cards cannot start a drag.
+  final Set<int> loadingIndices;
 
   /// Called when the selected index changes. `null` means deselected.
   final ValueChanged<int?>? onSelectionChanged;
@@ -62,6 +70,12 @@ class CatalogList extends StatefulWidget {
   /// disabled when null.
   final VoidCallback? onAddPressed;
 
+  /// Called when a drag is released over another card, with the dragged
+  /// card's index ([source]) and the card it was dropped on ([target]).
+  /// The host is responsible for reordering [items] and, if desired, for
+  /// marking both indices as [loadingIndices] while that happens.
+  final void Function(int source, int target)? onSwitchRequested;
+
   @override
   State<CatalogList> createState() => _CatalogListState();
 }
@@ -70,8 +84,6 @@ class _CatalogListState extends State<CatalogList> {
   int? _selectedIndex;
   int? _draggingIndex;
   int? _dragTargetIndex;
-  Set<int> _loadingIndices = {};
-  Timer? _loadingTimer;
   OverlayEntry? _dragOverlay;
   final _dragPosition = ValueNotifier<Offset>(Offset.zero);
 
@@ -100,7 +112,6 @@ class _CatalogListState extends State<CatalogList> {
 
   @override
   void dispose() {
-    _loadingTimer?.cancel();
     _dragOverlay?.remove();
     _dragOverlay = null;
     _dragPosition.dispose();
@@ -114,7 +125,8 @@ class _CatalogListState extends State<CatalogList> {
   }
 
   void _startDrag(int index, Offset pointerGlobal) {
-    final renderBox = _cardKeys[index].currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        _cardKeys[index].currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
 
     _cardInitialTopLeft = renderBox.localToGlobal(Offset.zero);
@@ -131,11 +143,7 @@ class _CatalogListState extends State<CatalogList> {
           top: position.dy,
           child: Material(
             color: Colors.transparent,
-            child: _DraggableCatalogCard(
-              name: item.name,
-              subtext: item.subtext,
-              showSubtext: item.showSubtext,
-            ),
+            child: _DraggableCatalogCard(item: item),
           ),
         ),
       ),
@@ -157,7 +165,10 @@ class _CatalogListState extends State<CatalogList> {
       final base = rb.localToGlobal(Offset.zero) & rb.size;
       final halfGap = widget.spacing / 2;
       final rect = Rect.fromLTRB(
-        base.left, base.top - halfGap, base.right, base.bottom + halfGap,
+        base.left,
+        base.top - halfGap,
+        base.right,
+        base.bottom + halfGap,
       );
       if (rect.contains(pointerGlobal)) {
         newTarget = i;
@@ -180,17 +191,11 @@ class _CatalogListState extends State<CatalogList> {
       setState(() {
         _draggingIndex = null;
         _dragTargetIndex = null;
-        if (sourceIndex != null && targetIndex != null) {
-          _loadingIndices = {sourceIndex, targetIndex};
-        }
       });
     }
 
     if (sourceIndex != null && targetIndex != null) {
-      _loadingTimer?.cancel();
-      _loadingTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted) setState(() => _loadingIndices = {});
-      });
+      widget.onSwitchRequested?.call(sourceIndex, targetIndex);
     }
   }
 
@@ -204,10 +209,12 @@ class _CatalogListState extends State<CatalogList> {
           if (i > 0) SizedBox(height: widget.spacing),
           GestureDetector(
             key: _cardKeys[i],
-            onLongPressStart: (widget.items[i].disabled || _loadingIndices.contains(i))
+            onLongPressStart:
+                (widget.items[i].disabled || widget.loadingIndices.contains(i))
                 ? null
                 : (details) => _startDrag(i, details.globalPosition),
-            onLongPressMoveUpdate: (details) => _updateDrag(details.globalPosition),
+            onLongPressMoveUpdate: (details) =>
+                _updateDrag(details.globalPosition),
             onLongPressEnd: (_) => _endDrag(),
             onLongPressCancel: _endDrag,
             child: CatalogCard(
@@ -221,7 +228,7 @@ class _CatalogListState extends State<CatalogList> {
               disabled: widget.items[i].disabled,
               isDragSource: _draggingIndex == i,
               isDragTarget: _dragTargetIndex == i,
-              isLoading: _loadingIndices.contains(i),
+              isLoading: widget.loadingIndices.contains(i),
               selected: _selectedIndex == i,
               onSelectedChanged: (v) => _handleSelectionChanged(i, v),
               onRemovePressed: widget.onRemovePressed != null
@@ -243,78 +250,35 @@ class _CatalogListState extends State<CatalogList> {
 }
 
 // Floating card rendered in the Overlay while a drag is active.
-// Always uses the compact icon layout (arch-upper) regardless of whether
-// the source card has a scan model image.
+//
+// Reuses [CatalogCard]'s compact layout (so the two cannot drift apart) with
+// the drag-copy rules applied: always the compact arch-upper icon layout
+// (`selected: false`, `scanModel: false`, so no scan image), never the green
+// status check (`showStatus: false`), plus an elevation-3 shadow. The icon
+// background keeps CatalogCard's own `BlendMode.multiply`. Pointer and focus
+// are excluded — the copy is purely visual.
 class _DraggableCatalogCard extends StatelessWidget {
-  const _DraggableCatalogCard({
-    required this.name,
-    required this.subtext,
-    required this.showSubtext,
-  });
+  const _DraggableCatalogCard({required this.item});
 
-  final String name;
-  final String subtext;
-  final bool showSubtext;
+  final CatalogListItem item;
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
-    return SizedBox(
-      width: 288,
-      height: 96,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: tokens.surface.standard,
-          borderRadius: BorderRadius.circular(tokens.border.radius.standard),
-          boxShadow: tokens.shadows.elevation3,
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(tokens.spacing.layout.s),
-          child: Row(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: tokens.background.standard,
-                  backgroundBlendMode: BlendMode.multiply,
-                  borderRadius: BorderRadius.circular(tokens.border.radius.standard),
-                ),
-                child: Center(
-                  child: DSIcon.medium(
-                    iconRef: DSIcons.archUpper,
-                    color: tokens.icon.subdued,
-                  ),
-                ),
-              ),
-              SizedBox(width: tokens.spacing.component.s),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      name,
-                      style: tokens.text.textBase.copyWith(
-                        color: tokens.text.standard,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    if (showSubtext)
-                      Text(
-                        subtext,
-                        style: tokens.text.textSm.copyWith(
-                          color: tokens.text.subdued,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                  ],
-                ),
-              ),
-            ],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(tokens.border.radius.standard),
+        boxShadow: tokens.shadows.elevation3,
+      ),
+      child: ExcludeFocus(
+        child: IgnorePointer(
+          child: CatalogCard(
+            name: item.name,
+            subtext: item.subtext,
+            showSubtext: item.showSubtext,
+            selected: false,
+            scanModel: false,
+            showStatus: false,
           ),
         ),
       ),

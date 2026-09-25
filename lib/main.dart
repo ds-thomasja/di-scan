@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lightning_core_ui/lightning_core_ui.dart';
 
@@ -526,6 +528,10 @@ class _CatalogCardPlaygroundState extends State<_CatalogCardPlayground> {
 
 /// Live, controls-driven preview of [CatalogList]: a dropdown selecting which
 /// (if any) of the fixed demo items is selected.
+///
+/// Also simulates the host side of a drag-drop switch: on
+/// [CatalogList.onSwitchRequested] both involved cards are marked as
+/// [CatalogList.loadingIndices] for 2 s (demo only — no real data reorder).
 class _CatalogListPlayground extends StatefulWidget {
   const _CatalogListPlayground();
 
@@ -542,8 +548,27 @@ class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
     'Not scanned',
   ];
 
+  /// Demo duration of the simulated switch operation.
+  static const _switchDuration = Duration(seconds: 2);
+
   int? _selectedIndex = 1;
   bool _scanModel = false;
+  Set<int> _loadingIndices = const {};
+  Timer? _loadingTimer;
+
+  @override
+  void dispose() {
+    _loadingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _simulateSwitch(int source, int target) {
+    setState(() => _loadingIndices = {source, target});
+    _loadingTimer?.cancel();
+    _loadingTimer = Timer(_switchDuration, () {
+      if (mounted) setState(() => _loadingIndices = const {});
+    });
+  }
 
   List<CatalogListItem> _buildItems(DSTokensData tokens) => [
         for (var i = 0; i < _names.length; i++)
@@ -585,8 +610,10 @@ class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
               child: CatalogList(
                 selectedIndex: _selectedIndex,
                 items: items,
+                loadingIndices: _loadingIndices,
                 onSelectionChanged: (index) =>
                     setState(() => _selectedIndex = index),
+                onSwitchRequested: _simulateSwitch,
               ),
             ),
           ),
@@ -656,21 +683,74 @@ class _HeaderMenuMorePlayground extends StatelessWidget {
   }
 }
 
-/// Live preview of [HeaderMenuSettings]: press the button to open its panel.
-class _HeaderMenuSettingsPlayground extends StatelessWidget {
+/// Live, controls-driven preview of [HeaderMenuSettings]: press the button
+/// to open its panel, then use the switches on the right to show/hide each
+/// of the panel's four sections.
+class _HeaderMenuSettingsPlayground extends StatefulWidget {
   const _HeaderMenuSettingsPlayground();
+
+  @override
+  State<_HeaderMenuSettingsPlayground> createState() =>
+      _HeaderMenuSettingsPlaygroundState();
+}
+
+class _HeaderMenuSettingsPlaygroundState
+    extends State<_HeaderMenuSettingsPlayground> {
+  bool _showRenderStyle = true;
+  bool _showSound = true;
+  bool _showView = true;
+  bool _showHolesDetection = true;
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(tokens.spacing.layout.l),
-      child: _Section(
-        title: 'HeaderMenuSettings',
-        caption: 'Press the button to open its panel.',
-        child: const Center(child: HeaderMenuSettings()),
-      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'HeaderMenuSettings',
+              caption: 'Press the button to open its panel.',
+              child: Center(
+                child: HeaderMenuSettings(
+                  showRenderStyle: _showRenderStyle,
+                  showSound: _showSound,
+                  showView: _showView,
+                  showHolesDetection: _showHolesDetection,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            DSSwitch(
+              label: 'Render style section',
+              value: _showRenderStyle,
+              onChanged: (value) => setState(() => _showRenderStyle = value),
+            ),
+            DSSwitch(
+              label: 'Sound section',
+              value: _showSound,
+              onChanged: (value) => setState(() => _showSound = value),
+            ),
+            DSSwitch(
+              label: 'View section',
+              value: _showView,
+              onChanged: (value) => setState(() => _showView = value),
+            ),
+            DSSwitch(
+              label: 'Holes detection section',
+              value: _showHolesDetection,
+              onChanged: (value) => setState(() => _showHolesDetection = value),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
