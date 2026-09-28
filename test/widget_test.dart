@@ -157,6 +157,9 @@ void main() {
     Finder warningIcon() => find.byWidgetPredicate(
       (w) => w is DSIcon && w.iconRef == DSIcons.warning,
     );
+    Finder deviceIcon() => find.byWidgetPredicate(
+      (w) => w is DSIcon && w.iconRef == DSIcons.deviceDSPrimescanNeo,
+    );
 
     testWidgets('no-device mode shortens its label per breakpoint and only '
         'fires onSelectScanner', (tester) async {
@@ -211,8 +214,81 @@ void main() {
       );
       expect(find.text('Device name'), findsNothing);
       expect(wifiIcon(), findsOneWidget);
-      expect(battery(), findsNothing);
+      // formFactor only overrides HeaderMenuDevice's own breakpoint choice;
+      // DSBatteryIndicator reads the *real* DSFormFactor.of(context) (this
+      // test's 1600px window, i.e. large) for its own percentage text, so
+      // "35%" still renders here despite the small trigger layout.
+      expect(battery(), findsOneWidget);
+      expect(find.text('35%'), findsOneWidget);
+      expect(deviceIcon(), findsNothing);
     });
+
+    testWidgets('wifi icon and battery indicator are each independently '
+        'tied to whether the device has that data', (tester) async {
+      const wifiOnly = HeaderMenuConnectedDevice(
+        name: 'Device name',
+        wifiName: 'Wi-Fi Dentsply Sirona',
+      );
+      const batteryOnly = HeaderMenuConnectedDevice(
+        name: 'Device name',
+        batteryPercent: 35,
+      );
+      const neither = HeaderMenuConnectedDevice(name: 'Device name');
+
+      await pumpDevice(
+        tester,
+        const HeaderMenuDevice(
+          device: wifiOnly,
+          formFactor: DSFormFactor.large,
+        ),
+      );
+      expect(wifiIcon(), findsOneWidget);
+      expect(battery(), findsNothing);
+
+      await pumpDevice(
+        tester,
+        const HeaderMenuDevice(
+          device: batteryOnly,
+          formFactor: DSFormFactor.large,
+        ),
+      );
+      expect(wifiIcon(), findsNothing);
+      expect(battery(), findsOneWidget);
+
+      await pumpDevice(
+        tester,
+        const HeaderMenuDevice(device: neither, formFactor: DSFormFactor.large),
+      );
+      expect(wifiIcon(), findsNothing);
+      expect(battery(), findsNothing);
+      expect(find.text('Device name'), findsOneWidget);
+      expect(deviceIcon(), findsOneWidget);
+    });
+
+    testWidgets(
+      'device icon fallback shows at every breakpoint when neither wifi nor '
+      'battery is present, alongside the name where visible',
+      (tester) async {
+        const neither = HeaderMenuConnectedDevice(name: 'Device name');
+
+        for (final breakpoint in DSFormFactor.values) {
+          await pumpDevice(
+            tester,
+            HeaderMenuDevice(device: neither, formFactor: breakpoint),
+          );
+          expect(wifiIcon(), findsNothing);
+          expect(battery(), findsNothing);
+          expect(deviceIcon(), findsOneWidget);
+        }
+
+        // Only shown when the device truly has neither Wi-Fi nor battery.
+        await pumpDevice(
+          tester,
+          const HeaderMenuDevice(device: device, formFactor: DSFormFactor.small),
+        );
+        expect(deviceIcon(), findsNothing);
+      },
+    );
 
     testWidgets('badges render independently', (tester) async {
       await pumpDevice(tester, const HeaderMenuDevice(device: device));
@@ -295,6 +371,7 @@ void main() {
         ),
       );
       expect(battery(), findsNothing);
+      expect(wifiIcon(), findsNothing);
 
       await tester.tap(find.byType(HeaderMenuDevice));
       await tester.pump();

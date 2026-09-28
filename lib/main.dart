@@ -669,8 +669,9 @@ extension on _DeviceBreakpoint {
 
 /// Live, controls-driven preview of [HeaderMenuDevice]: a connected-device
 /// switch (off = "Select scanner" mode), device/Wi-Fi name inputs, a battery
-/// percentage input, badge switches, the multiple-devices switch, the two
-/// panel warning switches and a breakpoint override.
+/// percentage input, a calibration-due badge switch, the multiple-devices
+/// switch, the network/battery warning switches (each also drives its own
+/// corner badge) and a breakpoint override.
 class _HeaderMenuDevicePlayground extends StatefulWidget {
   const _HeaderMenuDevicePlayground();
 
@@ -688,8 +689,6 @@ class _HeaderMenuDevicePlaygroundState
   bool _connected = true;
   bool _showWifi = true;
   bool _showBattery = true;
-  bool _networkAlert = false;
-  bool _batteryAlert = false;
   bool _calibrationDue = false;
   bool _multipleDevices = true;
   bool _networkWarning = false;
@@ -743,8 +742,8 @@ class _HeaderMenuDevicePlaygroundState
                                   _showBattery ? batteryPercent : null,
                             )
                           : null,
-                      hasNetworkAlert: _networkAlert,
-                      hasBatteryAlert: _batteryAlert,
+                      hasNetworkAlert: _networkWarning,
+                      hasBatteryAlert: _batteryWarning,
                       hasCalibrationDue: _calibrationDue,
                       hasMultipleDevices: _multipleDevices,
                       networkWarningMessage: _networkWarning
@@ -833,16 +832,6 @@ class _HeaderMenuDevicePlaygroundState
                 keyboardType: TextInputType.number,
                 onChanged: (_) => setState(() {}),
               ),
-            ),
-            DSSwitch(
-              label: 'Network alert badge',
-              value: _networkAlert,
-              onChanged: (value) => setState(() => _networkAlert = value),
-            ),
-            DSSwitch(
-              label: 'Battery alert badge',
-              value: _batteryAlert,
-              onChanged: (value) => setState(() => _batteryAlert = value),
             ),
             DSSwitch(
               label: 'Calibration due badge',

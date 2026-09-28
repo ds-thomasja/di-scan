@@ -18,8 +18,8 @@ class HeaderMenuConnectedDevice {
 
   /// Name of the Wi-Fi network the scanner is connected to.
   ///
-  /// When `null`, the panel's "WiFi" row (and its optional warning) is
-  /// omitted. The trigger's network icon is always shown.
+  /// When `null`, the trigger's Wi-Fi icon and the panel's "WiFi" row (and
+  /// its optional warning) are both omitted.
   final String? wifiName;
 
   /// Battery charge in percent (0–100).
@@ -45,9 +45,14 @@ enum _Breakpoint { s, m, l }
 /// - [device] is `null`: a warning icon plus "Select scanner" (">L") /
 ///   "Scanner" (M) / no text (S). Pressing it calls [onSelectScanner]; there
 ///   is no panel in this mode (Figma has no Open=true variant for it).
-/// - [device] is set: device name (">L" only), a Wi-Fi icon, and a
-///   [DSBatteryIndicator] (">L" and M; icon + percentage). At S only the
-///   Wi-Fi icon remains. Pressing it opens the detail panel.
+/// - [device] is set: device name (">L" only), a Wi-Fi icon (only when
+///   [HeaderMenuConnectedDevice.wifiName] is set) and a [DSBatteryIndicator]
+///   (only when [HeaderMenuConnectedDevice.batteryPercent] is set; no
+///   percentage text at S). If the device has neither Wi-Fi nor battery
+///   data, a [DSIcons.deviceDSPrimescanNeo] icon takes their place at every
+///   breakpoint — to the right of the name at ">L", alone at M/S where the
+///   name is hidden — so the trigger is never icon-less. Pressing it opens
+///   the detail panel.
 ///
 /// **Responsiveness** — the layout follows the app's own window-width
 /// breakpoints via [DSFormFactor.of] (small → S, medium → M, large and
@@ -288,15 +293,31 @@ class _HeaderMenuDeviceState extends State<HeaderMenuDevice> {
     HeaderMenuConnectedDevice device,
   ) {
     final tokens = DSTokens.of(context);
+    final wifiName = device.wifiName;
     final batteryPercent = device.batteryPercent;
+    final hasNoStatus = wifiName == null && batteryPercent == null;
     return [
       if (breakpoint == _Breakpoint.l)
-        Flexible(child: _triggerText(tokens, device.name)),
-      DSIcon(
-        iconRef: _weakNetwork ? DSIcons.wifiLow : DSIcons.wifiHigh,
-        iconSize: tokens.icon.size.m,
-      ),
-      if (breakpoint != _Breakpoint.s && batteryPercent != null)
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 200),
+            child: _triggerText(tokens, device.name),
+          ),
+        ),
+      // Neither Wi-Fi nor battery to show: fall back to a device icon (to
+      // the right of the name when visible, alone otherwise) so the
+      // trigger isn't left empty (not a Figma-specified state).
+      if (hasNoStatus)
+        DSIcon(
+          iconRef: DSIcons.deviceDSPrimescanNeo,
+          iconSize: tokens.icon.size.m,
+        ),
+      if (wifiName != null)
+        DSIcon(
+          iconRef: _weakNetwork ? DSIcons.wifiLow : DSIcons.wifiHigh,
+          iconSize: tokens.icon.size.m,
+        ),
+      if (batteryPercent != null)
         DSBatteryIndicator(
           batteryLevel: batteryPercent,
           lowLevelThreshold: widget.lowBatteryThreshold,
@@ -398,7 +419,7 @@ class _DevicePanel extends StatelessWidget {
     final batteryWarningMessage = this.batteryWarningMessage;
 
     final sections = <List<Widget>>[
-      [_DetailRow(icon: DSIcons.label, headline: 'Name', subtext: device.name)],
+      [_DetailRow(icon: DSIcons.text, headline: 'Name', subtext: device.name)],
       if (wifiName != null)
         [
           _DetailRow(
@@ -446,7 +467,6 @@ class _DevicePanel extends StatelessWidget {
             ),
           ],
         ],
-      if (hasMultipleDevices) [_ChangeDeviceRow(onPressed: onChangeDevice)],
     ];
 
     final children = <Widget>[];
@@ -471,14 +491,32 @@ class _DevicePanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(tokens.border.radius.standard),
           boxShadow: tokens.shadows.elevation3,
         ),
-        padding: EdgeInsets.symmetric(
-          vertical: tokens.spacing.component.xs,
-          horizontal: tokens.spacing.component.m,
-        ),
+        padding: EdgeInsets.symmetric(vertical: tokens.spacing.component.xs),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: tokens.spacing.component.m,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...children,
+                  if (hasMultipleDevices) ...[
+                    gap,
+                    const DSDivider.horizontal(),
+                  ],
+                ],
+              ),
+            ),
+            if (hasMultipleDevices) ...[
+              gap,
+              _ChangeDeviceRow(onPressed: onChangeDevice),
+            ],
+          ],
         ),
       ),
     );
@@ -515,12 +553,16 @@ class _DetailRow extends StatelessWidget {
               children: [
                 Text(
                   headline,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: tokens.text.textBase.copyWith(
                     color: tokens.text.standard,
                   ),
                 ),
                 Text(
                   subtext,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: tokens.text.textSm.copyWith(
                     color: tokens.text.subdued,
                   ),
@@ -535,6 +577,14 @@ class _DetailRow extends StatelessWidget {
 }
 
 /// The single-line, tappable "Change device" row.
+///
+/// Styled like an option-list item (see the internal DS `DSOption`/
+/// `DSOptionList` widgets, not part of the public API): a full-width
+/// [tokens.surface] background that highlights on hover/press, rather than
+/// [DSCrudeButtonThemeData]'s button-chrome `actionTertiary` colors. The row
+/// escapes the panel's shared horizontal padding (see [_DevicePanel.build])
+/// so this background can reach the panel's edges, matching the Storybook
+/// "Option list" component.
 class _ChangeDeviceRow extends StatelessWidget {
   const _ChangeDeviceRow({required this.onPressed});
 
@@ -546,8 +596,18 @@ class _ChangeDeviceRow extends StatelessWidget {
     return DSCrudeButton(
       themeData: DSCrudeButtonThemeData.tertiary(tokens),
       onPressed: onPressed,
-      builder: (context, state) => Padding(
-        padding: EdgeInsets.symmetric(vertical: tokens.spacing.component.xs),
+      builder: (context, state) => Container(
+        width: double.infinity,
+        color: switch (state) {
+          DSClickableState.pressed => tokens.surface.pressed,
+          DSClickableState.hovered => tokens.surface.hovered,
+          DSClickableState.disabled => tokens.surface.disabled,
+          DSClickableState.standard => tokens.surface.standard,
+        },
+        padding: EdgeInsets.symmetric(
+          vertical: tokens.spacing.component.xs,
+          horizontal: tokens.spacing.component.m,
+        ),
         child: Text(
           'Change device',
           style: tokens.text.textBase.copyWith(color: tokens.text.standard),
