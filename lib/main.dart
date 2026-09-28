@@ -6,6 +6,7 @@ import 'package:lightning_core_ui/lightning_core_ui.dart';
 import 'components/application_loading/application_loading.dart';
 import 'components/catalog_card/catalog_card.dart';
 import 'components/catalog_list/catalog_list.dart';
+import 'components/header_menu_device/header_menu_device.dart';
 import 'components/header_menu_help/header_menu_help.dart';
 import 'components/header_menu_more/header_menu_more.dart';
 import 'components/header_menu_settings/header_menu_settings.dart';
@@ -70,6 +71,7 @@ final List<_ComponentEntry> _componentEntries = [
   const _ComponentEntry('ApplicationLoading', _ApplicationLoadingPlayground()),
   const _ComponentEntry('CatalogCard', _CatalogCardPlayground()),
   const _ComponentEntry('CatalogList', _CatalogListPlayground()),
+  const _ComponentEntry('HeaderMenuDevice', _HeaderMenuDevicePlayground()),
   const _ComponentEntry('HeaderMenuHelp', _HeaderMenuHelpPlayground()),
   const _ComponentEntry('HeaderMenuMore', _HeaderMenuMorePlayground()),
   const _ComponentEntry('HeaderMenuSettings', _HeaderMenuSettingsPlayground()),
@@ -637,6 +639,236 @@ class _CatalogListPlaygroundState extends State<_CatalogListPlayground> {
               label: 'Scan model',
               value: _scanModel,
               onChanged: (value) => setState(() => _scanModel = value),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Breakpoint choices for the [HeaderMenuDevice] playground: `auto` follows
+/// the real window width via [DSFormFactor.of]; the others override it.
+enum _DeviceBreakpoint { auto, large, medium, small }
+
+extension on _DeviceBreakpoint {
+  String get label => switch (this) {
+        _DeviceBreakpoint.auto => 'Auto (window width)',
+        _DeviceBreakpoint.large => '>L',
+        _DeviceBreakpoint.medium => 'M',
+        _DeviceBreakpoint.small => 'S',
+      };
+
+  DSFormFactor? get formFactor => switch (this) {
+        _DeviceBreakpoint.auto => null,
+        _DeviceBreakpoint.large => DSFormFactor.large,
+        _DeviceBreakpoint.medium => DSFormFactor.medium,
+        _DeviceBreakpoint.small => DSFormFactor.small,
+      };
+}
+
+/// Live, controls-driven preview of [HeaderMenuDevice]: a connected-device
+/// switch (off = "Select scanner" mode), device/Wi-Fi name inputs, a battery
+/// percentage input, badge switches, the multiple-devices switch, the two
+/// panel warning switches and a breakpoint override.
+class _HeaderMenuDevicePlayground extends StatefulWidget {
+  const _HeaderMenuDevicePlayground();
+
+  @override
+  State<_HeaderMenuDevicePlayground> createState() =>
+      _HeaderMenuDevicePlaygroundState();
+}
+
+class _HeaderMenuDevicePlaygroundState
+    extends State<_HeaderMenuDevicePlayground> {
+  late final _nameController = TextEditingController(text: 'Device name');
+  late final _wifiController =
+      TextEditingController(text: 'Wi-Fi Dentsply Sirona');
+  late final _batteryController = TextEditingController(text: '35');
+  bool _connected = true;
+  bool _showWifi = true;
+  bool _showBattery = true;
+  bool _networkAlert = false;
+  bool _batteryAlert = false;
+  bool _calibrationDue = false;
+  bool _multipleDevices = true;
+  bool _networkWarning = false;
+  bool _batteryWarning = false;
+  _DeviceBreakpoint _breakpoint = _DeviceBreakpoint.auto;
+  String _lastAction = '—';
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _wifiController.dispose();
+    _batteryController.dispose();
+    super.dispose();
+  }
+
+  /// Parsed battery input, or `null` when it is not a whole number in
+  /// 0–100 (the range [DSBatteryIndicator] asserts).
+  int? get _batteryPercent {
+    final value = int.tryParse(_batteryController.text.trim());
+    return value != null && value >= 0 && value <= 100 ? value : null;
+  }
+
+  void _report(String action) => setState(() => _lastAction = action);
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DSTokens.of(context);
+    final batteryPercent = _batteryPercent;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'HeaderMenuDevice',
+              caption: _connected
+                  ? 'Press the button to open its panel.'
+                  : 'No scanner selected: pressing the button only fires '
+                      'onSelectScanner.',
+              child: Column(
+                children: [
+                  Center(
+                    child: HeaderMenuDevice(
+                      device: _connected
+                          ? HeaderMenuConnectedDevice(
+                              name: _nameController.text,
+                              wifiName: _showWifi ? _wifiController.text : null,
+                              batteryPercent:
+                                  _showBattery ? batteryPercent : null,
+                            )
+                          : null,
+                      hasNetworkAlert: _networkAlert,
+                      hasBatteryAlert: _batteryAlert,
+                      hasCalibrationDue: _calibrationDue,
+                      hasMultipleDevices: _multipleDevices,
+                      networkWarningMessage: _networkWarning
+                          ? 'The Wi-Fi signal is weak and data transfer may '
+                              'be interrupted.'
+                          : null,
+                      batteryWarningMessage: _batteryWarning
+                          ? 'Charge the scanner soon or continue with another '
+                              'scanner.'
+                          : null,
+                      formFactor: _breakpoint.formFactor,
+                      onSelectScanner: () => _report('onSelectScanner'),
+                      onChangeDevice: () => _report('onChangeDevice'),
+                      onTroubleshootNetwork: () =>
+                          _report('onTroubleshootNetwork'),
+                      onSwitchScanner: () => _report('onSwitchScanner'),
+                    ),
+                  ),
+                  SizedBox(height: tokens.spacing.layout.s),
+                  Text(
+                    'Last action: $_lastAction',
+                    style:
+                        tokens.text.textSm.copyWith(color: tokens.text.subdued),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            DSSwitch(
+              label: 'Device connected',
+              value: _connected,
+              onChanged: (value) => setState(() => _connected = value),
+            ),
+            _ControlField(
+              label: 'Breakpoint',
+              child: DSDropdown<_DeviceBreakpoint>(
+                items: [
+                  for (final breakpoint in _DeviceBreakpoint.values)
+                    DSDropdownItem(value: breakpoint, title: breakpoint.label),
+                ],
+                value: _breakpoint,
+                onChanged: (value) =>
+                    setState(() => _breakpoint = value ?? _breakpoint),
+              ),
+            ),
+            _ControlField(
+              label: 'Device name',
+              child: DSInput(
+                controller: _nameController,
+                enabled: _connected,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            DSSwitch(
+              label: 'WiFi',
+              value: _showWifi,
+              onChanged: _connected
+                  ? (value) => setState(() => _showWifi = value)
+                  : null,
+            ),
+            _ControlField(
+              label: 'WiFi name',
+              child: DSInput(
+                controller: _wifiController,
+                enabled: _connected && _showWifi,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            DSSwitch(
+              label: 'Battery',
+              value: _showBattery,
+              onChanged: _connected
+                  ? (value) => setState(() => _showBattery = value)
+                  : null,
+            ),
+            _ControlField(
+              label: 'Battery % (0–100)',
+              child: DSInput(
+                controller: _batteryController,
+                enabled: _connected && _showBattery,
+                hasError: batteryPercent == null,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            DSSwitch(
+              label: 'Network alert badge',
+              value: _networkAlert,
+              onChanged: (value) => setState(() => _networkAlert = value),
+            ),
+            DSSwitch(
+              label: 'Battery alert badge',
+              value: _batteryAlert,
+              onChanged: (value) => setState(() => _batteryAlert = value),
+            ),
+            DSSwitch(
+              label: 'Calibration due badge',
+              value: _calibrationDue,
+              onChanged: (value) => setState(() => _calibrationDue = value),
+            ),
+            DSSwitch(
+              label: 'Multiple devices',
+              value: _multipleDevices,
+              onChanged: _connected
+                  ? (value) => setState(() => _multipleDevices = value)
+                  : null,
+            ),
+            DSSwitch(
+              label: 'Network warning',
+              value: _networkWarning,
+              onChanged: _connected
+                  ? (value) => setState(() => _networkWarning = value)
+                  : null,
+            ),
+            DSSwitch(
+              label: 'Battery warning',
+              value: _batteryWarning,
+              onChanged: _connected
+                  ? (value) => setState(() => _batteryWarning = value)
+                  : null,
             ),
           ],
         ),
