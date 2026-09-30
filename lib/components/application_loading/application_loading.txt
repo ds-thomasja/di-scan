@@ -4,41 +4,51 @@ As a clinician waiting for the DI scan software to load, I want the loading scre
 
 Relevant links
 Figma Concept: https://www.figma.com/design/lEowX0JA9cpEUra35XnohW/DI-Scan-%C2%B7-Projects?node-id=38640-134098
-Figma Component: https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5025-18863&t=MOk4gFwLNnuKbGym-4
+Figma Component — loading/countdown screen: https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5025-18863&t=MOk4gFwLNnuKbGym-4
+Figma Component — delayed (>3 min) screen: https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5025-18764&t=D2MYwMoMgdGcunDp-4
+Figma Component — timeout screen: https://www.figma.com/design/oY2AELOxR8s6HKYkCTAOQs/Equipment-Components?node-id=5086-23421&t=D2MYwMoMgdGcunDp-4
 Flutter Component: application_loading.dart
 Preview: https://ds-thomasja.github.io/di-scan-ux-preview/ (Password: di-scan-loading)
 Component Anatomy & Flutter Mapping
+The component renders one of 3 mutually exclusive full-screen compositions, selected via the `state` prop (`ApplicationLoadingState.loading`/`.delayed`/`.timeout`, reconciled against their own dedicated Figma nodes above, 2026-09-30). All 3 share the same progress circle and overall layout shell.
 Element	Flutter Widget	Documentation
 Indeterminate progress circle	DSProgressCircleFilled.withImage	Progress circle (filled)
-Title	Text (style: heading3xl), fixed copy "Loading scan..."	n/a
-Subline	Text (style: textBase, subdued), via the `subline` prop	n/a
-Inline notification	DSInlineNotification (notificationType: information), fixed copy, via the `notification` prop	Inline notification
-Timeline container	DSContainer, via the `timeline` prop	Container
-Timeline stepper	DSTimelineStepper, 3 fixed DSTimelineStep entries (see States below)	Timeline stepper
-Cancel action	DSButton.tertiary, via the `onCancel` prop	Button
+Title	Text (style: heading3xl), fixed copy — "Preparing scan..." in `.loading`/`.delayed`, "Couldn't prepare scan" in `.timeout`	n/a
+Subline	Text (style: textBase, subdued) — shown only in `.loading` (via the `subline` prop) and `.delayed` (fixed 2-line copy); absent entirely in `.timeout`	n/a
+Inline notification	DSInlineNotification — absent in `.loading`; information type, message-only, in `.delayed`; warning type with a "Try again" DSNotificationAction link (via the `onRetry` prop), in `.timeout`	Inline notification
+Timeline container	DSContainer — shown only in `.loading`	Container
+Timeline stepper	DSTimelineStepper, 3 fixed DSTimelineStep entries (see States below) — shown only in `.loading`	Timeline stepper
+Bottom action	DSButton.tertiary, via the `onCancel` prop — labelled "Cancel" in `.loading`/`.delayed`, "Close" in `.timeout`	Button
 Component Props
 Prop	Type	Default	Description
-subline	String	"This may take a few seconds"	Subtext shown under the heading. Swapping it cross-fades in place at a constant height if the new text wraps to the same number of lines as the old; if the line count changes, the swap also animates height (see Motion below).
-notification	bool	true	Shows/hides the "Taking a little longer than usual" inline notification. Fixed copy — the component has no warning/timeout variant.
-timeline	bool	true	Shows/hides the 3-step timeline card. The 3 steps are fixed content (see States below) — the component does not accept per-step state as input.
-onCancel	VoidCallback?	null	Called when "Cancel loading" is pressed. The button stays enabled when null; pressing it is then a no-op.
+subline	String	"Takes a few seconds"	Subtext shown under the heading, only when `state` is `.loading`. Swapping it cross-fades in place at a constant height if the new text wraps to the same number of lines as the old; if the line count changes, the swap also animates height (see Motion below). Ignored for `.delayed` (fixed copy) and `.timeout` (no subline).
+state	ApplicationLoadingState	.loading	Selects which of the 3 Figma-defined screens to render. The 3 values are mutually exclusive — there is no way to combine or partially apply them.
+onCancel	VoidCallback?	null	Called when the bottom button ("Cancel"/"Close") is pressed. The button stays enabled when null; pressing it is then a no-op.
+onRetry	VoidCallback?	null	Called when "Try again" is pressed in the `.timeout` notification. Unused in the other two states. Per DSNotificationAction, the link renders disabled when this is null.
 Acceptance Criteria
 Functional:
-The page renders a Title ("Loading scan..."), an Indeterminate progress circle, and a "Cancel loading" action at all times.
-`notification` and `timeline` are independent booleans set by the caller — the component itself does not enforce any mutual exclusivity between them and the subline (see Design Intent below for the intended caller-side behavior).
-Activating "Cancel loading" exits the loading page (behaviour target: page where DI Scan was started from).
-States — Timeline stepper (fixed content, not configurable via props):
-Infrastructure: icon Stepper-Active (filled), text "Preparing workspace…" — always shown as the active step.
-Scan data: icon Circle (empty), text "Fetch scan data" — always shown as an upcoming step.
-Application: icon Circle (empty), text "Start application" — always shown as an upcoming step.
+The page renders a Title, an Indeterminate progress circle, and a bottom action at all times, across all 3 states.
+`state` is the single source of truth for which screen is shown — the component does not expose independent booleans for the notification/timeline/subline, since Figma defines these 3 screens as fixed, non-combinable compositions (see States below).
+Activating "Cancel"/"Close" exits the loading page (behaviour target: page where DI Scan was started from). Activating "Try again" (only reachable in `.timeout`) retries loading.
+States — the 3 `ApplicationLoadingState` screens (each fully fixed content, confirmed against its own full-screen Figma node, 2026-09-30):
+`.loading` (Figma node 5033:19060, via 5025:18863): Title "Preparing scan...", `subline` (caller-driven, see Design Intent for its elapsed-time progression), the 3-step timeline stepper, no notification, button "Cancel".
+`.delayed` (Figma node 5025:18764): Title "Preparing scan..." (unchanged from `.loading`), fixed 2-line subline "Takes several minutes.\nThe delay is server-side, not on this device." (the line break is literal, not a wrap), an information notification reading "Keep this screen open. Refreshing restarts loading." (message-only, no title), no timeline, button "Cancel".
+`.timeout` (Figma node 5086:23421): Title "Couldn't prepare scan" (distinct from the other 2 states), no subline, a warning notification reading "Server-side issue. Scan data remains safe." plus a "Try again" link action (wired to `onRetry`), no timeline, button "Close" (distinct from "Cancel").
+States — Timeline stepper (fixed content, not configurable via props; only rendered in `.loading`):
+Infrastructure: icon Stepper-Active (filled), text "Setting up workspace…" — always shown as the active step.
+Scan data: icon Circle (empty), text "Scan data" — always shown as an upcoming step.
+Application: icon Circle (empty), text "Scanner" — always shown as an upcoming step.
 Motion:
-The `notification` and `timeline` show/hide transitions, and the `subline` text swap, use a 320ms opacity/height transition with an easeInOutSine curve (softer than the Figma spec's 200ms cubic-bezier(0.4, 0.0, 0.2, 1) — a deliberate implementation choice for a gentler feel; not pixel/timing-identical to Figma).
-The height component of the subline's transition only applies when its wrapped line count actually changes (e.g. wrapping to a different number of lines); a swap between two same-line-count strings (e.g. "This only takes a moment" → "Ready in about 30 seconds") cross-fades in place at a constant height, with no height animation.
-Design Intent — not implemented in this component (caller-owned behaviour for whoever assembles the real loading page; documented here as the target design, since it motivated the `subline`/`notification`/`timeline` props):
-Exactly one of {Subline + Timeline stepper} OR {Inline notification} is intended to be visible at any time — never both, never neither — by driving `notification`/`timeline` accordingly; the component does not enforce this itself.
-Elapsed time since load start is intended to drive `subline` through: "Checking wait time..." (waiting for estimate) → "This only takes a moment" (0–10s) → "Ready in about 30 seconds" (10–45s) → "Ready in about a minute" (45–80s) → "Ready in about 2 minutes" (80s–2.5min) → beyond 2.5min, set `notification = true` and `timeline = false` instead of a subline (info copy: "Taking a little longer than usual" / "This can take several minutes. Please stay on this screen and do not refresh.").
-On a backend-reported timeout, the intended notification copy is a warning variant ("We couldn't finish loading" / "Something went wrong on our side.") — not available today, since `notification`'s type is hardcoded to information.
-The 3 timeline steps are intended to be independently driven by backend events (each of Infrastructure/Scan data/Application cycling Pending → Active → Complete, with Application's Complete state visible a minimum of 1500ms) — not available today, since the stepper's 3 steps are fixed content, not props.
+The notification/timeline show/hide transitions, and the `subline` text swap, use a 320ms opacity/height transition with an easeInOutSine curve (softer than the Figma spec's 200ms cubic-bezier(0.4, 0.0, 0.2, 1) — a deliberate implementation choice for a gentler feel; not pixel/timing-identical to Figma).
+The height component of the subline's transition only applies when its wrapped line count actually changes (e.g. wrapping to a different number of lines); a swap between two same-line-count strings (e.g. "Takes a few seconds" → "Takes under a minute") cross-fades in place at a constant height, with no height animation.
+Design Intent — partially caller-owned (behaviour for whoever assembles the real loading page and drives `subline`/`state` over time; the 3 screens themselves are now fully implemented, per States above):
+Elapsed time since load start is intended to drive `subline` through (wording reconciled against Figma "Equipment-Components" node 5086:22894, 2026-09-30; the pre-estimate "Checking wait time..." state was not present in that reference and is unconfirmed), while `state` stays `.loading`: "Checking wait time..." (waiting for estimate) → "Takes a few seconds" (0–10s) → "Takes under a minute" (10–45s) → "Takes under 2 minutes" (45–80s) → "Takes under 3 minutes" (80s–2.5min) → beyond ~3 minutes, switch `state` to `.delayed` (its fixed subline/notification copy takes over from here).
+On a backend-reported timeout, switch `state` to `.timeout`. This is fully implemented (2026-09-30, including the distinct title, absent subline, warning notification with a working "Try again" link, and "Close" button label) — no longer a partial/unconfirmed variant.
+Each of the 3 timeline steps is intended to cycle Pending → Active → Complete with distinct copy per state (Figma node 5086:22916, 2026-09-30), superseding the generic description above:
+- Infrastructure step: Pending "Workspace" → Active "Setting up workspace…" → Complete "Workspace ready".
+- Scan data step: Pending "Scan data" → Active "Loading scan data…" → Complete "Scan data ready".
+- Application step: Pending "Scanner" → Active "Connecting scanner…" → Complete "Scanner ready".
+The 3 timeline steps are intended to be independently driven by backend events, with Application's Complete state visible a minimum of 1500ms — not available today, since the stepper's 3 steps are fixed content, not props.
 Visual Fidelity:
 Title:
 Colors: text `var(--text-standard, #242424)`
@@ -52,11 +62,11 @@ Spacing: 8px gap below Title
 Inline notification:
 Colors (info): background `var({}surface-information-subdued, #eaf5fa)`, border `var({}border-information, #24759e)`, icon `var({-}-icon-information, #24759e)`
 Colors (warning): background `var({}surface-warning-subdued, #fef5ec)`, border `var({}border-warning, #e47e11)`, icon `var({-}-icon-warning, #e47e11)`
-Typography (title): Be Vietnam Pro SemiBold, `var({}text-size-headingbase, 16px)`, line-height `var({}text-lh-headingbase, 24px)`, letter-spacing `var({-}-text-ls-headingbase, -0.4px)`
 Typography (body): Be Vietnam Pro Regular, `var({}text-size-textbase, 16px)`, line-height `var({}text-lh-textbase, 24px)`, letter-spacing `var({-}-text-ls-textbase, -0.4px)`
+Typography (action link, `.timeout` only): Be Vietnam Pro SemiBold, `var({}text-size-textbasestrongunderline, 16px)`, line-height `var({}text-lh-textbasestrongunderline, 24px)`, letter-spacing `var({-}-text-ls-textbasestrongunderline, -0.4px)`, underlined
 Border: 1px solid (colour per variant above), radius `var(--border-radius-standard, 12px)`
 Spacing: padding 8px 4px 8px 12px, 8px gap between icon and body
-Sizing: icon 24×24px, container overflow: none (single-line title, wrapping body)
+Sizing: icon 24×24px, container overflow: none, wrapping body. No title is used in either state (info or warning) — both are message-only.
 Storybook: Inline notification
 Timeline stepper container:
 Colors: background `var(--surface-standard, #ffffff)`
@@ -68,13 +78,13 @@ Colors: connector line `var({}surface-neutral-standard, #d7d7d7)`; text `var({-}
 Typography: Be Vietnam Pro SemiBold, `var({}text-size-textbasestrong, 16px)`, line-height `var({}text-lh-textbasestrong, 24px)`, letter-spacing `var({-}-text-ls-textbasestrong, -0.4px)`, single line with ellipsis truncation
 Sizing: icon 24×24px, container overflow: hidden with `text-overflow: ellipsis` on the step label
 Storybook: Timeline stepper
-Cancel loading (button):
+Bottom action (button):
 Colors: text `var(--text-standard, #242424)`, background transparent
 Typography: Be Vietnam Pro SemiBold, `var({}text-size-textaction, 14px)`, line-height `var({}text-lh-textaction, 24px)`, letter-spacing `var({-}-text-ls-textaction, -0.35px)`, centered
 Border: none, radius `var(--border-radius-standard, 12px)`
 Spacing: padding 8px 16px
 Storybook: Button
 Content Logic & Edge Cases
-The subline is always rendered regardless of `notification`/`timeline`, and there is no prop to remove it — the Figma instance overrides that remove it entirely once a notification is shown (Design Intent above) are not implemented; a caller wanting that behavior must be given that capability in a future change to this component.
-Both optional blocks off: with `notification = false` and `timeline = false`, the layout collapses to the progress circle, title, subline, and Cancel button — no placeholder space is reserved for the hidden blocks.
+The 3 `state` values are mutually exclusive by construction (a single enum, not independent booleans) — there is no way to render, say, the timeline alongside the `.timeout` notification, matching the 3 fixed Figma compositions exactly.
+`subline` is only read in `.loading`; changing it while `state` is `.delayed`/`.timeout` has no visible effect, since those states use their own fixed (or absent) subline.
 Step label is single-line; if a future longer label overflows 320px width, truncate with ellipsis (`text-overflow: ellipsis`) rather than wrapping.

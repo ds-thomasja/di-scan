@@ -585,8 +585,8 @@ void main() {
   );
 
   testWidgets(
-    'ApplicationLoading playground toggles the notification and timeline '
-    'blocks',
+    "ApplicationLoading playground's Loading-above-3-minutes and Timeout "
+    'switches select mutually exclusive screens',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1600, 2400);
       tester.view.devicePixelRatio = 1.0;
@@ -596,38 +596,85 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // ApplicationLoading is selected by default, with both optional blocks on.
-      // 'This may take a few seconds' matches both the Subline control's
-      // initial value and the preview's own subline text.
-      expect(find.text('Loading scan...'), findsOneWidget);
-      expect(find.text('This may take a few seconds'), findsNWidgets(2));
-      expect(find.text('Taking a little longer than usual'), findsOneWidget);
-      expect(find.text('Preparing workspace…'), findsOneWidget);
-      expect(find.text('Fetch scan data'), findsOneWidget);
-      expect(find.text('Start application'), findsOneWidget);
-      expect(find.text('Cancel loading'), findsOneWidget);
+      // ApplicationLoading is selected by default, in its loading/countdown
+      // state: no notification, timeline shown. 'Takes a few seconds'
+      // matches both the Subline control's initial value and the preview's
+      // own subline text.
+      expect(find.text('Preparing scan...'), findsOneWidget);
+      expect(find.text('Takes a few seconds'), findsNWidgets(2));
+      expect(find.text('Setting up workspace…'), findsOneWidget);
+      expect(find.text('Scan data'), findsOneWidget);
+      expect(find.text('Scanner'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(
+        find.text('Keep this screen open. Refreshing restarts loading.'),
+        findsNothing,
+      );
 
-      // Turning the "Notification" switch off hides the inline notification but
-      // keeps the timeline stepper.
-      await tester.tap(find.text('Notification'));
+      // Turning "Loading above 3 minutes" on switches to the delayed screen:
+      // fixed 2-line subline, info notification, no timeline.
+      await tester.tap(find.text('Loading above 3 minutes'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Taking a little longer than usual'), findsNothing);
-      expect(find.text('Preparing workspace…'), findsOneWidget);
+      expect(find.text('Preparing scan...'), findsOneWidget);
+      expect(
+        find.text(
+          'Takes several minutes.\nThe delay is server-side, not on this '
+          'device.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Keep this screen open. Refreshing restarts loading.'),
+        findsOneWidget,
+      );
+      expect(find.text('Setting up workspace…'), findsNothing);
+      expect(find.text('Cancel'), findsOneWidget);
 
-      // Turning the "Timeline" switch off hides the stepper card as well.
-      await tester.tap(find.text('Timeline'));
+      // Turning "Timeout" on switches to the timeout screen and — since the
+      // two switches are mutually exclusive — turns "Loading above 3
+      // minutes" back off.
+      await tester.tap(find.text('Timeout'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Preparing workspace…'), findsNothing);
-      expect(find.text('Fetch scan data'), findsNothing);
-      expect(find.text('Start application'), findsNothing);
+      expect(find.text('Preparing scan...'), findsNothing);
+      expect(find.text("Couldn't prepare scan"), findsOneWidget);
+      expect(
+        find.text(
+          'Takes several minutes.\nThe delay is server-side, not on this '
+          'device.',
+        ),
+        findsNothing,
+      );
+      // The notification's message and "Try again" link are two TextSpans
+      // inside one Text.rich, not separate Text widgets — findRichText is
+      // needed to search inside it.
+      expect(
+        find.textContaining(
+          'Server-side issue. Scan data remains safe.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Try again', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('Close'), findsOneWidget);
+      expect(find.text('Cancel'), findsNothing);
+      expect(find.text('Setting up workspace…'), findsNothing);
 
-      // The heading, subtext and cancel button are always present.
-      expect(find.text('Loading scan...'), findsOneWidget);
-      expect(find.text('Cancel loading'), findsOneWidget);
+      // Turning "Timeout" back off returns to the default loading screen.
+      await tester.tap(find.text('Timeout'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Preparing scan...'), findsOneWidget);
+      expect(find.text('Setting up workspace…'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text("Couldn't prepare scan"), findsNothing);
     },
   );
 
@@ -649,7 +696,7 @@ void main() {
       );
       final initialHeight = tester.getSize(sublineFinder).height;
 
-      // Same line count ("This may take a few seconds" -> "Ready in about 30
+      // Same line count ("Takes a few seconds" -> "Ready in about 30
       // seconds", both one line): height must not move mid-transition.
       await tester.enterText(find.byType(DSInput), 'Ready in about 30 seconds');
       await tester.pump();

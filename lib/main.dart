@@ -316,8 +316,9 @@ class _ControlField extends StatelessWidget {
 }
 
 /// Live, controls-driven preview of [ApplicationLoading]: an input for the
-/// subline text and switches for the optional inline notification and the
-/// timeline stepper card.
+/// subline text and two mutually exclusive switches selecting the "loading
+/// above 3 minutes" and timeout screens (neither on shows the default
+/// loading/countdown screen).
 class _ApplicationLoadingPlayground extends StatefulWidget {
   const _ApplicationLoadingPlayground();
 
@@ -329,9 +330,8 @@ class _ApplicationLoadingPlayground extends StatefulWidget {
 class _ApplicationLoadingPlaygroundState
     extends State<_ApplicationLoadingPlayground> {
   late final _sublineController =
-      TextEditingController(text: 'This may take a few seconds');
-  bool _notification = true;
-  bool _timeline = true;
+      TextEditingController(text: 'Takes a few seconds');
+  ApplicationLoadingState _state = ApplicationLoadingState.loading;
 
   @override
   void dispose() {
@@ -361,9 +361,9 @@ class _ApplicationLoadingPlaygroundState
                 height: 900,
                 child: ApplicationLoading(
                   subline: _sublineController.text,
-                  notification: _notification,
-                  timeline: _timeline,
+                  state: _state,
                   onCancel: () {},
+                  onRetry: () {},
                 ),
               ),
             ),
@@ -380,14 +380,22 @@ class _ApplicationLoadingPlaygroundState
               ),
             ),
             DSSwitch(
-              label: 'Notification',
-              value: _notification,
-              onChanged: (value) => setState(() => _notification = value),
+              label: 'Loading above 3 minutes',
+              value: _state == ApplicationLoadingState.delayed,
+              onChanged: (value) => setState(() {
+                _state = value
+                    ? ApplicationLoadingState.delayed
+                    : ApplicationLoadingState.loading;
+              }),
             ),
             DSSwitch(
-              label: 'Timeline',
-              value: _timeline,
-              onChanged: (value) => setState(() => _timeline = value),
+              label: 'Timeout',
+              value: _state == ApplicationLoadingState.timeout,
+              onChanged: (value) => setState(() {
+                _state = value
+                    ? ApplicationLoadingState.timeout
+                    : ApplicationLoadingState.loading;
+              }),
             ),
           ],
         ),
