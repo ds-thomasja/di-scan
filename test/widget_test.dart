@@ -386,7 +386,7 @@ void main() {
   });
 
   testWidgets("HeaderMenuHelp's popup lists About DI Scan, Give feedback and "
-      'Onboarding, in that order', (WidgetTester tester) async {
+      'Show onboarding, in that order', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1600, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -405,7 +405,76 @@ void main() {
 
     expect(find.text('About DI Scan'), findsOneWidget);
     expect(find.text('Give feedback'), findsOneWidget);
-    expect(find.text('Onboarding'), findsOneWidget);
+    expect(find.text('Show onboarding'), findsOneWidget);
+  });
+
+  testWidgets(
+      "HeaderMenuHelp's Onboarding row shows Hide onboarding once the "
+      "playground's Onboarding visible switch is toggled on",
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('HeaderMenuHelp'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.byType(DSSwitch));
+    await tester.pump();
+
+    await tester.tap(find.byType(HeaderMenuHelp));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Hide onboarding'), findsOneWidget);
+    expect(find.text('Show onboarding'), findsNothing);
+  });
+
+  testWidgets(
+      "Selecting HeaderMenuHelp's onboarding row toggles its own label "
+      'between Show onboarding and Hide onboarding', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ComponentPreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('HeaderMenuHelp'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.byType(HeaderMenuHelp));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('Show onboarding'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.byType(HeaderMenuHelp));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Hide onboarding'), findsOneWidget);
+    expect(find.text('Show onboarding'), findsNothing);
+
+    await tester.tap(find.text('Hide onboarding'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.byType(HeaderMenuHelp));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Show onboarding'), findsOneWidget);
+    expect(find.text('Hide onboarding'), findsNothing);
   });
 
   testWidgets(

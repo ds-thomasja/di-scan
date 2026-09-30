@@ -866,21 +866,58 @@ class _HeaderMenuDevicePlaygroundState
   }
 }
 
-/// Live preview of [HeaderMenuHelp]: press the button to open its menu.
-class _HeaderMenuHelpPlayground extends StatelessWidget {
+/// Live, controls-driven preview of [HeaderMenuHelp]: press the button to
+/// open its menu, then either select the "Show onboarding"/"Hide onboarding"
+/// row itself (which flips its own label, mirroring how a host app would
+/// toggle onboarding visibility from that action) or use the switch on the
+/// right to set it directly.
+class _HeaderMenuHelpPlayground extends StatefulWidget {
   const _HeaderMenuHelpPlayground();
+
+  @override
+  State<_HeaderMenuHelpPlayground> createState() =>
+      _HeaderMenuHelpPlaygroundState();
+}
+
+class _HeaderMenuHelpPlaygroundState extends State<_HeaderMenuHelpPlayground> {
+  bool _isOnboardingVisible = false;
 
   @override
   Widget build(BuildContext context) {
     final tokens = DSTokens.of(context);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(tokens.spacing.layout.l),
-      child: _Section(
-        title: 'HeaderMenuHelp',
-        caption: 'Press the button to open its menu.',
-        child: const Center(child: HeaderMenuHelp()),
-      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(tokens.spacing.layout.l),
+            child: _Section(
+              title: 'HeaderMenuHelp',
+              caption: 'Press the button to open its menu.',
+              child: Center(
+                child: HeaderMenuHelp(
+                  isOnboardingVisible: _isOnboardingVisible,
+                  onOnboarding: () => setState(
+                    () => _isOnboardingVisible = !_isOnboardingVisible,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        _ControlsPanel(
+          children: [
+            DSSwitch(
+              label: 'Onboarding visible',
+              value: _isOnboardingVisible,
+              onChanged: (value) =>
+                  setState(() => _isOnboardingVisible = value),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

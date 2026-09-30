@@ -9,7 +9,7 @@ h2. Design Definition & Assets
 - Design Definition (Jira): [S3806-6114|https://jira.dentsplysirona.com/browse/S3806-6114] — status *Draft*.
 - Flutter Component: [header_menu_help.dart|https://github.com/ds-thomasja/di-scan/blob/main/lib/components/header_menu_help/header_menu_help.dart]
 - Handover (procedurecontroldi): [header_menu_help.dart|https://github.com/DS-DP-S/procedurecontroldi/blob/S3806-6115-header_menu_help/apps/di_design_system/header_menu_help/header_menu_help.dart] — pushed to branch {{S3806-6115-header_menu_help}} ({{S3806-6115}}); no PR opened yet, so this is not yet on {{main}} — re-verify once merged.
-- Interaction Model: The Help button is a question-mark ({{DSIcons.helpCircle}}) icon button in the header, built on {{DSActionsButton.iconTertiary}}. Tapping it opens a popup menu anchored to the button (preferred bottom-right, falling back to top-right if there is insufficient space below), listing three actions in a single section: "About DI Scan", "Give feedback", "Onboarding". Selecting an action closes the popup first, then invokes that action's callback ({{onAboutDiScan}} / {{onGiveFeedback}} / {{onOnboarding}}) — the component itself does not perform navigation or any side effect; the host app owns what each action actually does. The popup also closes on an outside tap. While the popup is open, the button shows a pressed/"open" look. The button carries a "Help" tooltip.
+- Interaction Model: The Help button is a question-mark ({{DSIcons.helpCircle}}) icon button in the header, built on {{DSActionsButton.iconTertiary}}. Tapping it opens a popup menu anchored to the button (preferred bottom-right, falling back to top-right if there is insufficient space below), listing three actions in a single section: "About DI Scan", "Give feedback", and a third row whose label toggles between "Show onboarding" and "Hide onboarding" depending on {{isOnboardingVisible}}. Selecting an action closes the popup first, then invokes that action's callback ({{onAboutDiScan}} / {{onGiveFeedback}} / {{onOnboarding}}) — the component itself does not perform navigation or any side effect (including toggling {{isOnboardingVisible}} itself); the host app owns what each action actually does and owns the onboarding-visible state. The popup also closes on an outside tap. While the popup is open, the button shows a pressed/"open" look. The button carries a "Help" tooltip.
 
 
 h2. Component Props
@@ -17,7 +17,8 @@ h2. Component Props
 || Prop || Type || Default || Description ||
 | {{onAboutDiScan}} | {{VoidCallback?}} | {{null}} | Called when "About DI Scan" is selected. If {{null}}, the component substitutes a no-op callback internally, so the option still renders *enabled* (hover/pressed states remain testable) — selecting it just closes the popup and does nothing further. |
 | {{onGiveFeedback}} | {{VoidCallback?}} | {{null}} | Called when "Give feedback" is selected. Same no-op fallback as above when {{null}}. |
-| {{onOnboarding}} | {{VoidCallback?}} | {{null}} | Called when "Onboarding" is selected. Same no-op fallback as above when {{null}}. |
+| {{onOnboarding}} | {{VoidCallback?}} | {{null}} | Called when the onboarding row is selected. Same no-op fallback as above when {{null}}. |
+| {{isOnboardingVisible}} | {{bool}} | {{false}} | Whether onboarding is currently visible in the host app. Purely a display toggle for the row's label — "Show onboarding" when {{false}}, "Hide onboarding" when {{true}} — and does not by itself change any visibility; the host app must own and update the actual onboarding-visible state, e.g. from {{onOnboarding}}. |
 
 
 h2. Component Anatomy & Flutter Mapping
@@ -27,17 +28,17 @@ h2. Component Anatomy & Flutter Mapping
 | Popup menu container | {{DSOptionList}} (internal to {{DSActionsButton}}; not stretched, so it sizes to its widest option) | [Option list|https://storybook-coreui-d2-euw3.d.dscore.com/#/Private/Option%20list] |
 | "About DI Scan" row | {{DSAction}} (title: "About DI Scan", icon: {{DSIcons.infoCircle}}, onTrigger: {{onAboutDiScan}}) rendered as a {{DSOptionWrapper}} row | [Option list|https://storybook-coreui-d2-euw3.d.dscore.com/#/Private/Option%20list] |
 | "Give feedback" row | {{DSAction}} (title: "Give feedback", icon: {{DSIcons.comment}}, onTrigger: {{onGiveFeedback}}) | [Option list|https://storybook-coreui-d2-euw3.d.dscore.com/#/Private/Option%20list] |
-| "Onboarding" row | {{DSAction}} (title: "Onboarding", icon: {{DSIcons.annotations}}, onTrigger: {{onOnboarding}}) | [Option list|https://storybook-coreui-d2-euw3.d.dscore.com/#/Private/Option%20list] |
+| Onboarding row | {{DSAction}} (title: {{isOnboardingVisible ? 'Hide onboarding' : 'Show onboarding'}}, icon: {{DSIcons.annotations}}, onTrigger: {{onOnboarding}}) | [Option list|https://storybook-coreui-d2-euw3.d.dscore.com/#/Private/Option%20list] |
 
 
 h2. Acceptance Criteria
 
  - *Functional:*
  -- Tapping the trigger button opens the popup menu; tapping it again, tapping outside the popup, or selecting any option closes it.
- -- Selecting "About DI Scan" closes the popup and then invokes {{onAboutDiScan}}; the same close-then-invoke order applies to "Give feedback" ({{onGiveFeedback}}) and "Onboarding" ({{onOnboarding}}) — confirmed from {{DSActionsButton}}'s own {{onChanged}} handler ({{closePopup(); value.onTrigger?.call();}}).
+ -- Selecting "About DI Scan" closes the popup and then invokes {{onAboutDiScan}}; the same close-then-invoke order applies to "Give feedback" ({{onGiveFeedback}}) and the onboarding row ({{onOnboarding}}) — confirmed from {{DSActionsButton}}'s own {{onChanged}} handler ({{closePopup(); value.onTrigger?.call();}}).
  -- Any option whose callback is {{null}} (the default for all three) still renders *enabled*: {{header_menu_help.dart}} passes {{onAboutDiScan ?? () {}}} (and the equivalent for the other two) as {{onTrigger}}, so {{DSAction.toOption()}}'s {{enabled: onTrigger != null}} rule is always satisfied and the row responds to hover/pressed/tap — tapping it with no host callback wired just closes the popup and performs no action.
- -- The three options always render in a single, undivided section, in the fixed order About DI Scan → Give feedback → Onboarding.
- -- The component performs no navigation, snackbar, or other side effect itself — all three actions are purely host-owned callbacks (*confirm with Product* what "About DI Scan" is expected to show — an in-app dialog, an external page, a version/about screen — and where "Onboarding" is expected to navigate; not specified by the Figma node itself).
+ -- The three options always render in a single, undivided section, in the fixed order About DI Scan → Give feedback → Show/Hide onboarding.
+ -- The component performs no navigation, snackbar, or other side effect itself, and does not itself flip {{isOnboardingVisible}} — all three actions are purely host-owned callbacks (*confirm with Product* what "About DI Scan" is expected to show — an in-app dialog, an external page, a version/about screen — and where the onboarding row is expected to navigate; not specified by the Figma node itself).
 
  - *Tooltip:*
  -- The trigger button shows a "Help" tooltip, using {{DSActionsButton}}'s built-in {{tooltip}} parameter (default DS tooltip behavior/timing — not overridden by this component).
@@ -66,7 +67,7 @@ h2. Acceptance Criteria
  --- Shadow: {{var(--shadows/elevation-3)}} = x 0 px, y 4 px, blur 20 px, spread 6 px, color {{rgba(0,0,0,0.08)}}.
  --- Padding: {{var(--spacing/component/xs, 8px)}} top and bottom; 0 left/right (the horizontal inset lives on each option row instead).
  --- Position: anchored to the trigger button, preferred bottom-right, falling back to top-right when there isn't room below (fixed {{DSActionsButton}} behavior, not overridden here).
- -- *Option row ("About DI Scan" / "Give feedback" / "Onboarding"):*
+ -- *Option row ("About DI Scan" / "Give feedback" / "Show onboarding"|"Hide onboarding"):*
  --- Padding: {{var(--spacing/component/xs, 8px)}} top/bottom, {{var(--spacing/component/m, 16px)}} left/right.
  --- Gap between icon and label: {{var(--spacing/component/xs, 8px)}}.
  --- Icon: 24x24 px ({{var(--icon/size/m)}}), color {{var(--icon/standard, #242424)}}.

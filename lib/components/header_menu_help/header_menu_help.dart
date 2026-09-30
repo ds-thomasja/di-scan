@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lightning_core_ui/lightning_core_ui.dart';
 
 /// The "Help" header menu button — a question-mark icon that opens a dropdown
-/// menu with About DI Scan / Give feedback / Onboarding.
+/// menu with About DI Scan / Give feedback / Show onboarding|Hide onboarding.
 ///
 /// Mirrors the Figma "Header Menu Help" component (node 5620:29386). Opening
 /// and closing the popup is handled natively by [DSActionsButton], which
@@ -18,6 +18,7 @@ class HeaderMenuHelp extends StatelessWidget {
     this.onAboutDiScan,
     this.onGiveFeedback,
     this.onOnboarding,
+    this.isOnboardingVisible = false,
   });
 
   /// Called when "About DI Scan" is selected.
@@ -26,8 +27,12 @@ class HeaderMenuHelp extends StatelessWidget {
   /// Called when "Give feedback" is selected.
   final VoidCallback? onGiveFeedback;
 
-  /// Called when "Onboarding" is selected.
+  /// Called when the onboarding row is selected.
   final VoidCallback? onOnboarding;
+
+  /// Whether onboarding is currently visible. Toggles the onboarding row's
+  /// label between "Show onboarding" and "Hide onboarding".
+  final bool isOnboardingVisible;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +54,7 @@ class HeaderMenuHelp extends StatelessWidget {
             onTrigger: onGiveFeedback ?? () {},
           ),
           DSAction(
-            title: 'Onboarding',
+            title: isOnboardingVisible ? 'Hide onboarding' : 'Show onboarding',
             icon: DSIcons.annotations,
             onTrigger: onOnboarding ?? () {},
           ),
